@@ -1,0 +1,111 @@
+/**
+ * Backend contracts. Screens and features depend ONLY on these interfaces.
+ * `src/services/mock/*` implements them with realistic latency and state machines;
+ * a real BFF client can replace the mock without touching UI code.
+ */
+import type { Category, Dish, ModifierGroup } from '@/entities/dish/model/types';
+import type { CartLine, FulfillmentMode } from '@/entities/cart/model/types';
+import type { Address, GeoPoint, Incident, IncidentKind, Order, PaymentMethod } from '@/entities/order/model/types';
+import type { BanquetRequest, Booking, FloorPlan, Restaurant } from '@/entities/restaurant/model/types';
+import type { Promo, Review } from '@/entities/promo/model/types';
+import type { User } from '@/entities/user/model/types';
+
+export interface ApiError {
+  code: 'network' | 'validation' | 'not_found' | 'unauthorized' | 'conflict' | 'payment_declined' | 'out_of_zone' | 'rate_limited';
+  message: string;
+}
+
+export interface MenuSnapshot {
+  categories: Category[];
+  dishes: Dish[];
+  modifiers: ModifierGroup[];
+  stopList: string[];
+}
+
+export interface CatalogApi {
+  getMenu(): Promise<MenuSnapshot>;
+  getReviews(dishId: string): Promise<Review[]>;
+  getPromos(): Promise<Promo[]>;
+  validatePromo(code: string, itemsTotal: number): Promise<Promo>;
+}
+
+export interface AuthApi {
+  /** Sends an SMS code. Test code is always 0000. */
+  requestCode(phone: string): Promise<{ resendInSec: number }>;
+  verifyCode(phone: string, code: string): Promise<{ token: string; user: User; isNew: boolean }>;
+}
+
+export interface ZoneCheck {
+  inZone: boolean;
+  zoneName: string;
+  minOrder: number;
+  deliveryFee: number;
+  etaMinutes: [number, number];
+  restaurantId: string;
+}
+
+export interface GeoApi {
+  suggest(query: string): Promise<Array<{ title: string; subtitle: string; point: GeoPoint; street: string; house: string }>>;
+  reverse(point: GeoPoint): Promise<{ street: string; house: string } | null>;
+  checkZone(point: GeoPoint): Promise<ZoneCheck>;
+  route(from: GeoPoint, to: GeoPoint): Promise<GeoPoint[]>;
+}
+
+export interface PlaceOrderInput {
+  lines: CartLine[];
+  mode: FulfillmentMode;
+  address?: Address;
+  restaurantId: string;
+  payment: PaymentMethod;
+  promoCode?: string;
+  pointsToSpend: number;
+  tips: number;
+  comment?: string;
+  cutlery: number;
+  scheduledFor?: number;
+}
+
+export interface OrdersApi {
+  place(input: PlaceOrderInput): Promise<Order>;
+  list(): Promise<Order[]>;
+  get(id: string): Promise<Order>;
+  cancel(id: string): Promise<Order>;
+  rate(id: string, stars: number, tags: string[], comment?: string, photo?: string): Promise<Order>;
+  resolveIncident(orderId: string, incidentId: string, resolutionId: string): Promise<Order>;
+  /** Live updates: status changes, courier movement, incidents. Returns unsubscribe. */
+  subscribe(id: string, cb: (order: Order) => void): () => void;
+  /** Pickup: "Я подхожу" (C14). */
+  arriving(id: string): Promise<Order>;
+}
+
+export interface BookingApi {
+  restaurants(): Promise<Restaurant[]>;
+  floorPlan(id: string): Promise<FloorPlan>;
+  availability(restaurantId: string, date: string, time: string, guests: number): Promise<{ busyTableIds: string[]; slots: string[] }>;
+  book(input: Omit<Booking, 'id' | 'status' | 'createdAt'>): Promise<Booking>;
+  myBookings(): Promise<Booking[]>;
+  sendBanquet(req: Omit<BanquetRequest, 'id' | 'status' | 'createdAt'>): Promise<BanquetRequest>;
+}
+
+export interface UserApi {
+  me(): Promise<User>;
+  update(patch: Partial<User>): Promise<User>;
+  addAddress(a: Omit<Address, 'id'>): Promise<User>;
+}
+
+/** Demo-only controls ("панель режиссёра", D0). Never shipped to production. */
+export interface DirectorApi {
+  triggerIncident(orderId: string, kind: IncidentKind): Promise<Incident | null>;
+  setSpeed(multiplier: number): void;
+  reset(): Promise<void>;
+}
+
+export interface Api {
+  catalog: CatalogApi;
+  auth: AuthApi;
+  geo: GeoApi;
+  orders: OrdersApi;
+  booking: BookingApi;
+  user: UserApi;
+  director: DirectorApi;
+}

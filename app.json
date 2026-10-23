@@ -1,25 +1,38 @@
 {
   "expo": {
-    "name": "zhar-tmp",
-    "slug": "zhar-tmp",
+    "name": "ЖАР",
+    "slug": "zhar",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#1A120D",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "ru.zhar.demo"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-image",
+      "expo-video",
+      "expo-font",
+      "expo-speech-recognition",
+      "expo-splash-screen"
+    ],
+    "scheme": "zhar",
+    "experiments": {
+      "tsconfigPaths": true
     }
   }
 }
