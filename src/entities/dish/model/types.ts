@@ -111,3 +111,16 @@ export interface Dish {
   video?: string;
   pairsWith: string[];
 }
+
+/** A vertical "Reels" clip bound to one dish (B2). */
+export interface Reel {
+  id: string;
+  dishId: string;
+  title: string;
+  /** Bundled video asset, or undefined for a Ken-Burns cinemagraph from a still. */
+  video?: number;
+  /** Bundled image asset or a media-manifest key. */
+  poster: number | string;
+  /** Seconds into the clip when the dish tag appears. */
+  tagAt: number;
+}

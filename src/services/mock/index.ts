@@ -17,6 +17,7 @@ import { CHEFS, COURIERS } from '@/mocks/seed/people';
 import { PROMOS } from '@/mocks/seed/promos';
 import { FLOOR_PLANS, RESTAURANTS } from '@/mocks/seed/restaurants';
 import { reviewsForDish } from '@/mocks/seed/reviews';
+import { REELS } from '@/mocks/seed/reels';
 import ROUTES from '@/mocks/seed/routes.json';
 import { DEMO_PHONE, demoOrderHistory, demoUser } from '@/mocks/seed/user';
 import type { Api, ApiError, PlaceOrderInput, ZoneCheck } from '../contracts';
@@ -183,6 +184,7 @@ export function createApi(opts: MockOptions = {}): Api {
         return d ? wait(reviewsForDish(d, Date.now())) : fail(err('not_found', 'Блюдо не найдено'));
       },
       getPromos: () => wait(PROMOS),
+      getReels: () => wait(REELS, 200),
       validatePromo: (code, itemsTotal) => {
         const p = PROMOS.find((x) => x.code.toLowerCase() === code.trim().toLowerCase());
         if (!p) return fail(err('validation', 'Такого промокода нет. Проверьте написание.'));

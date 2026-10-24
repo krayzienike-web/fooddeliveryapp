@@ -3,7 +3,7 @@
  * `src/services/mock/*` implements them with realistic latency and state machines;
  * a real BFF client can replace the mock without touching UI code.
  */
-import type { Category, Dish, ModifierGroup } from '@/entities/dish/model/types';
+import type { Category, Dish, ModifierGroup, Reel } from '@/entities/dish/model/types';
 import type { CartLine, FulfillmentMode } from '@/entities/cart/model/types';
 import type { Address, GeoPoint, Incident, IncidentKind, Order, PaymentMethod } from '@/entities/order/model/types';
 import type { BanquetRequest, Booking, FloorPlan, Restaurant } from '@/entities/restaurant/model/types';
@@ -26,6 +26,7 @@ export interface CatalogApi {
   getMenu(): Promise<MenuSnapshot>;
   getReviews(dishId: string): Promise<Review[]>;
   getPromos(): Promise<Promo[]>;
+  getReels(): Promise<Reel[]>;
   validatePromo(code: string, itemsTotal: number): Promise<Promo>;
 }
 
