@@ -14,7 +14,7 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests', '<rootDir>/src'],
   testMatch: ['<rootDir>/tests/{unit,contract}/**/*.test.ts', '<rootDir>/src/**/__tests__/**/*.test.ts'],
-  moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1' },
+  moduleNameMapper: { '\\.(mp4|webp|png|jpg|glb)$': '<rootDir>/tests/fixtures/assetStub.js', '^@/(.*)$': '<rootDir>/src/$1' },
   transform: {
     '^.+\\.[jt]sx?$': ['babel-jest', { presets: [presetExpo], babelrc: false, configFile: false }],
   },
