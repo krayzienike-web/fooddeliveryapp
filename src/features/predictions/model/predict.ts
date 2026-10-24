@@ -35,6 +35,15 @@ export interface PredictInput {
 
 export const CONFIDENCE_THRESHOLD = 0.6;
 
+/** Russian plural: 1 раз, 2 раза, 5 раз. */
+export function plural(n: number, one: string, few: string, many: string): string {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
 const WEEKDAY_TITLE = ['воскресенье', 'понедельник', 'вторник', 'среду', 'четверг', 'пятницу', 'субботу'];
 const WEEKDAY_PLURAL = ['по воскресеньям', 'по понедельникам', 'по вторникам', 'по средам', 'по четвергам', 'по пятницам', 'по субботам'];
 
@@ -80,7 +89,7 @@ export function predict(input: PredictInput): Prediction[] {
       kind: 'ritual',
       title: `Как обычно в ${WEEKDAY_TITLE[weekday]}?`,
       subtitle: 'Соберём тот же заказ в один тап',
-      why: `Вы заказываете это ${WEEKDAY_PLURAL[weekday]} около ${new Date(o.createdAt).getHours()}:00 — ${ritual.length} раза за последние недели`,
+      why: `Вы заказываете это ${WEEKDAY_PLURAL[weekday]} около ${new Date(o.createdAt).getHours()}:00 — ${ritual.length} ${plural(ritual.length, 'раз', 'раза', 'раз')} за последние недели`,
       confidence: Math.min(0.95, 0.55 + ritual.length * 0.1),
       dishIds: o.lines.map((l) => l.dishId),
       orderId: o.id,
@@ -127,7 +136,7 @@ export function predict(input: PredictInput): Prediction[] {
       kind: 'viewed_not_ordered',
       title: 'Всё ещё думаете?',
       subtitle: 'Попробуйте — если не понравится, вернём баллами',
-      why: `Вы смотрели это блюдо ${viewed[0][1]} раза`,
+      why: `Вы смотрели это блюдо ${viewed[0][1]} ${plural(viewed[0][1], 'раз', 'раза', 'раз')}`,
       confidence: 0.62,
       dishIds: [viewed[0][0]],
       cta: 'Попробовать',
@@ -161,7 +170,7 @@ export function predict(input: PredictInput): Prediction[] {
   if (input.birthdayInDays !== undefined && input.birthdayInDays >= 0 && input.birthdayInDays <= 7) {
     out.push({
       kind: 'birthday',
-      title: `День рождения через ${input.birthdayInDays} дн.`,
+      title: input.birthdayInDays === 0 ? 'С днём рождения! 🎉' : `День рождения через ${input.birthdayInDays} ${plural(input.birthdayInDays, 'день', 'дня', 'дней')}`,
       subtitle: 'Забронируйте стол — в ДР скидка 20%',
       why: 'Мы помним о вашем празднике',
       confidence: 0.8,

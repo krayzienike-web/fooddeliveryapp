@@ -95,7 +95,7 @@ export function calcTotals(input: TotalsInput): CartTotals {
   const afterDiscount = Math.max(0, itemsTotal - discount);
 
   const freeDeliveryByPromo = promo?.mechanic.kind === 'free_delivery' && itemsTotal >= promo.mechanic.minTotal;
-  const toFreeDelivery = mode === 'delivery' ? Math.max(0, PRICING.freeDeliveryFrom - afterDiscount) : 0;
+  const toFreeDelivery = mode === 'delivery' && !freeDeliveryByPromo ? Math.max(0, PRICING.freeDeliveryFrom - afterDiscount) : 0;
   const baseFee = input.deliveryFeeOverride ?? PRICING.deliveryFee;
   const deliveryFee = mode === 'pickup' || itemsCount === 0 || freeDeliveryByPromo || toFreeDelivery === 0 ? 0 : baseFee;
 

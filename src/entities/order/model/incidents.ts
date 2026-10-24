@@ -47,7 +47,7 @@ export function detectIncidents(order: Order, s: LiveSignals): IncidentKind[] {
   const out: IncidentKind[] = [];
   const known = new Set(order.incidents.map((i) => i.kind));
   const push = (k: IncidentKind) => {
-    if (!known.has(k)) out.push(k);
+    if (!known.has(k) && !out.includes(k)) out.push(k);
   };
   if (s.paymentFailed) push('payment_failed');
   if (order.lines.some((l) => s.outOfStockDishIds.includes(l.dishId))) push('stop_list');

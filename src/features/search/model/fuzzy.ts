@@ -89,6 +89,7 @@ export function didYouMean(dishes: Dish[], query: string): string | null {
   for (const dish of dishes) {
     for (const w of normalize(dish.name).split(' ')) {
       const d = damerauLevenshtein(q, w);
+      if (d === 0) return null;
       if (d > 0 && d <= 2 && (!best || d < best.d)) best = { w, d };
     }
   }
