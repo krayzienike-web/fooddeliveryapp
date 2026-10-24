@@ -25,7 +25,7 @@ export function IconButton({
 }) {
   const { c } = useTheme();
   const bg = { surface: c.surfaceRaised, glass: c.scrim, accent: c.accent, none: 'transparent' }[tone];
-  const fg = tone === 'accent' ? c.onAccent : tone === 'glass' ? '#F7EFE8' : c.textPrimary;
+  const fg = tone === 'accent' ? c.onAccent : tone === 'glass' ? c.onPhoto : c.textPrimary;
   return (
     <PressableScale
       testID={testID}

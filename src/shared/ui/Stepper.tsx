@@ -6,7 +6,7 @@ import { Icon } from './Icon';
 import { PressableScale } from './PressableScale';
 import { Txt } from './Txt';
 
-export function Stepper({ value, onInc, onDec, testID, size = 'm', min = 0 }: { value: number; onInc: () => void; onDec: () => void; testID?: string; size?: 's' | 'm'; min?: number }) {
+export function Stepper({ value, onInc, onDec, testID, size = 'm', min = 0, deleteAtOne = false }: { value: number; onInc: () => void; onDec: () => void; testID?: string; size?: 's' | 'm'; min?: number; deleteAtOne?: boolean }) {
   const { c } = useTheme();
   const bump = useSharedValue(1);
   useEffect(() => {
@@ -17,7 +17,7 @@ export function Stepper({ value, onInc, onDec, testID, size = 'm', min = 0 }: { 
   return (
     <View testID={testID} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: c.surfaceRaised, borderRadius: radius.full, height: h }}>
       <PressableScale testID={testID ? `${testID}-dec` : undefined} accessibilityLabel="Убрать одну" onPress={onDec} disabled={value <= min} hapticOnPress="tick" style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name={value <= 1 && min === 0 ? 'trash-can-outline' : 'minus'} size={20} />
+        <Icon name={deleteAtOne && value <= 1 ? 'trash-can-outline' : 'minus'} size={20} />
       </PressableScale>
       <Animated.View style={[{ minWidth: 20, alignItems: 'center' }, a]}>
         <Txt v="titleM" tabular>

@@ -23,6 +23,11 @@ export interface Palette {
   error: string;
   info: string;
   scrim: string;
+  /** Text/icons placed on photos or scrims — always light. */
+  onPhoto: string;
+  /** Dynamic-Island capsule background. */
+  island: string;
+  steam: string;
   overlay: string;
   map: { land: string; water: string; park: string; road: string; roadMajor: string; building: string; label: string };
 }
@@ -47,6 +52,9 @@ export const dark: Palette = {
   error: '#FF6B6B',
   info: '#7FB2FF',
   scrim: 'rgba(18,13,11,0.72)',
+  onPhoto: '#F7EFE8',
+  island: '#000000',
+  steam: 'rgba(255,248,240,0.16)',
   overlay: 'rgba(0,0,0,0.55)',
   map: { land: '#17110E', water: '#0B1418', park: '#141A12', road: '#2A201B', roadMajor: '#3A2C24', building: '#1E1714', label: '#9C8B80' },
 };
@@ -71,6 +79,9 @@ export const light: Palette = {
   error: '#C8372D',
   info: '#2D62B8',
   scrim: 'rgba(18,13,11,0.62)',
+  onPhoto: '#F7EFE8',
+  island: '#000000',
+  steam: 'rgba(255,248,240,0.16)',
   overlay: 'rgba(0,0,0,0.4)',
   map: { land: '#F4EBE3', water: '#CFE0E6', park: '#DCE7D2', road: '#FFFFFF', roadMajor: '#FBE3D2', building: '#EADDD2', label: '#80695D' },
 };

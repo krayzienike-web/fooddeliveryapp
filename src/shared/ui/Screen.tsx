@@ -5,7 +5,7 @@ import { space, useTheme } from '@/shared/theme';
 import { IconButton } from './IconButton';
 import { Txt } from './Txt';
 
-export function Screen({ children, testID, style, edges = ['top'] }: { children: ReactNode; testID?: string; style?: StyleProp<ViewStyle>; edges?: Array<'top' | 'bottom'> }) {
+export function Screen({ children, testID, style, edges = ['top'] }: { children?: ReactNode; testID?: string; style?: StyleProp<ViewStyle>; edges?: Array<'top' | 'bottom'> }) {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
   return (
