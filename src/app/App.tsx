@@ -7,6 +7,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useRestaurants } from '@/entities/restaurant/model/store';
 import { useMenu } from '@/entities/dish/model/store';
 import { useOrders } from '@/entities/order/model/store';
 import { bootstrapE2ESession } from '@/features/auth/model/store';
@@ -33,12 +34,14 @@ export default function App() {
   });
   const loadMenu = useMenu((s) => s.load);
   const loadOrders = useOrders((s) => s.load);
+  const loadRestaurants = useRestaurants((s) => s.load);
 
   useEffect(() => {
     loadMenu();
     loadOrders();
+    loadRestaurants();
     bootstrapE2ESession();
-  }, [loadMenu, loadOrders]);
+  }, [loadMenu, loadOrders, loadRestaurants]);
 
   const navTheme = isDark ? DarkTheme : DefaultTheme;
   return (

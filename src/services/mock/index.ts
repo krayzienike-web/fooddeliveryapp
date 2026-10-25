@@ -8,9 +8,10 @@ import type { Incident, IncidentKind, Order, OrderStatus } from '@/entities/orde
 import { buildIncident, compensationFor, shouldNotify } from '@/entities/order/model/incidents';
 import { distanceMeters, flowFor, isFinal, nextStatus } from '@/entities/order/model/lifecycle';
 import type { BanquetRequest, Booking } from '@/entities/restaurant/model/types';
-import { LOYALTY_LEVELS, levelFor } from '@/entities/user/model/loyalty';
+import { LOYALTY_LEVELS, WHEEL_RULES, levelFor, pickPrize, type WheelPrize } from '@/entities/user/model/loyalty';
 import type { Gift, TableSession } from '@/entities/table/model/types';
-import type { User } from '@/entities/user/model/types';
+import type { PointsEntry, User } from '@/entities/user/model/types';
+import type { Promo } from '@/entities/promo/model/types';
 import { CATEGORIES, DISHES, DISH_INDEX } from '@/mocks/seed/menu';
 import { MODIFIERS } from '@/mocks/seed/modifiers';
 import { DELIVERY_ZONE, KNOWN_ADDRESSES, pointInPolygon } from '@/mocks/seed/geo';
@@ -65,6 +66,47 @@ export function createApi(opts: MockOptions = {}): Api {
   let bookings: Booking[] = [];
   const banquets: BanquetRequest[] = [];
   let tables: TableSession[] = [];
+  // Loyalty (C12): the weekly spin is available when lastWeeklySpinAt is older than a week; orders from WHEEL_RULES.orderMin add bonus spins.
+  let lastWeeklySpinAt = 0;
+  let bonusSpins = 1;
+  let pointsLog: PointsEntry[] = [];
+  let personalPromos: Promo[] = [];
+  const promoByCode = (code: string) => [...personalPromos, ...PROMOS].find((x) => x.code.toLowerCase() === code.trim().toLowerCase());
+  const DAY = 86400000;
+  const loyaltyState = () => {
+    const now = Date.now();
+    const weekly = now - lastWeeklySpinAt >= WHEEL_RULES.weeklyEveryDays * DAY;
+    const fromOrders: PointsEntry[] = orders.flatMap((o) => [
+      ...(o.pointsSpent > 0 ? [{ id: `${o.id}-spent`, at: o.createdAt, delta: -o.pointsSpent, title: `Оплата заказа №${o.number}` }] : []),
+      ...((o.status === 'delivered' || o.status === 'picked_up') && o.pointsEarned > 0 ? [{ id: `${o.id}-earned`, at: o.history.at(-1)?.at ?? o.createdAt, delta: o.pointsEarned, title: `Кешбэк за заказ №${o.number}` }] : []),
+    ]);
+    return {
+      spins: (weekly ? 1 : 0) + bonusSpins,
+      nextWeeklySpinAt: weekly ? null : lastWeeklySpinAt + WHEEL_RULES.weeklyEveryDays * DAY,
+      history: [...pointsLog, ...fromOrders].sort((a, b) => b.at - a.at).slice(0, 40),
+    };
+  };
+  const prizePromo = (prize: WheelPrize): Promo => {
+    const abc = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const code = `ПРИЗ-${Array.from({ length: 4 }, () => abc[Math.floor(rnd() * abc.length)]).join('')}`;
+    const like = prize.kind === 'free_delivery' ? PROMOS.find((x) => x.mechanic.kind === 'free_delivery') : prize.kind === 'dish' ? PROMOS.find((x) => x.mechanic.kind === 'gift') : PROMOS.find((x) => x.mechanic.kind === 'percent');
+    const mechanic: Promo['mechanic'] =
+      prize.kind === 'free_delivery' ? { kind: 'free_delivery', minTotal: 0 } : prize.kind === 'dish' ? { kind: 'gift', dishId: prize.dishId!, minTotal: 0 } : { kind: 'percent', percent: prize.value };
+    const until = new Date(Date.now() + WHEEL_RULES.prizeTtlDays * DAY);
+    return {
+      id: `prize-${code}`,
+      code,
+      title: prize.title,
+      subtitle: 'Выигрыш в колесе недели',
+      description: `Приз из колеса недели. Действует ${WHEEL_RULES.prizeTtlDays} дней, на один заказ.`,
+      image: prize.dishId ? DISH_INDEX[prize.dishId]?.image ?? like?.image ?? 'pz-pepperoni' : like?.image ?? 'pz-pepperoni',
+      tint: like?.tint ?? PROMOS[0].tint,
+      mechanic,
+      validUntil: until.toISOString().slice(0, 10),
+      personal: true,
+      conditions: ['Один раз', 'Без минимальной суммы', `До ${until.getDate()}.${String(until.getMonth() + 1).padStart(2, '0')}`],
+    };
+  };
   const gifts: Gift[] = [];
   const subs = new Map<string, Set<(o: Order) => void>>();
   const timers = new Map<string, ReturnType<typeof setInterval>>();
@@ -186,10 +228,10 @@ export function createApi(opts: MockOptions = {}): Api {
         const d = DISH_INDEX[dishId];
         return d ? wait(reviewsForDish(d, Date.now())) : fail(err('not_found', 'Блюдо не найдено'));
       },
-      getPromos: () => wait(PROMOS),
+      getPromos: () => wait([...personalPromos, ...PROMOS]),
       getReels: () => wait(REELS, 200),
       validatePromo: (code, itemsTotal) => {
-        const p = PROMOS.find((x) => x.code.toLowerCase() === code.trim().toLowerCase());
+        const p = promoByCode(code);
         if (!p) return fail(err('validation', 'Такого промокода нет. Проверьте написание.'));
         const min = 'minTotal' in p.mechanic ? p.mechanic.minTotal ?? 0 : 0;
         if (itemsTotal < min) return fail(err('validation', `Промокод работает от ${min} ₽`));
@@ -247,7 +289,7 @@ export function createApi(opts: MockOptions = {}): Api {
         const unavailable = input.lines.find((l) => stopList.has(l.dishId));
         if (unavailable) return fail(err('conflict', `«${DISH_INDEX[unavailable.dishId]?.name}» закончилось. Удалите из корзины или выберите замену.`));
         if (input.mode === 'delivery' && input.address && !pointInPolygon(input.address.point, DELIVERY_ZONE)) return fail(err('out_of_zone', 'Этот адрес вне зоны доставки. Попробуйте самовывоз.'));
-        const promo = input.promoCode ? PROMOS.find((p) => p.code === input.promoCode) : undefined;
+        const promo = input.promoCode ? promoByCode(input.promoCode) : undefined;
         const lvl = levelFor(user.levelSpend);
         const totals = calcTotals({
           lines: input.lines,
@@ -291,6 +333,9 @@ export function createApi(opts: MockOptions = {}): Api {
           scheduledFor: input.scheduledFor,
         };
         user = { ...user, points: user.points - totals.pointsSpent };
+        // A won prize is single-use; a big enough order earns a bonus spin.
+        if (promo?.id.startsWith('prize-')) personalPromos = personalPromos.filter((x) => x.id !== promo.id);
+        if (totals.itemsTotal >= WHEEL_RULES.orderMin) bonusSpins += 1;
         orders = [order, ...orders];
         startTicker(order);
         return wait(structuredCloneSafe(order), 900);
@@ -407,6 +452,26 @@ export function createApi(opts: MockOptions = {}): Api {
       },
     },
 
+    loyalty: {
+      state: () => wait(loyaltyState(), 250),
+      spin: () => {
+        const st = loyaltyState();
+        if (st.spins <= 0) return fail(err('conflict', 'Спинов пока нет: новый — в начале недели или за заказ от 1500 ₽'));
+        if (st.nextWeeklySpinAt === null) lastWeeklySpinAt = Date.now();
+        else bonusSpins -= 1;
+        const prize = pickPrize(rnd());
+        let promo: Promo | undefined;
+        if (prize.kind === 'points') {
+          user = { ...user, points: user.points + prize.value };
+          pointsLog = [{ id: `spin-${Date.now().toString(36)}`, at: Date.now(), delta: prize.value, title: 'Колесо недели' }, ...pointsLog];
+        } else {
+          promo = prizePromo(prize);
+          personalPromos = [promo, ...personalPromos];
+        }
+        return wait({ prize, promo, state: loyaltyState() }, 500);
+      },
+    },
+
     table: {
       join: (qr) => {
         // Demo QR: «zhar://table/<restaurantId>/<label>»; anything else opens the demo table.
@@ -448,6 +513,7 @@ export function createApi(opts: MockOptions = {}): Api {
         const cashback = LOYALTY_LEVELS.find((l) => l.id === user.level)?.cashback ?? 3;
         const pointsEarned = Math.round((Math.min(amount, total) * cashback) / 100);
         user = { ...user, points: user.points + pointsEarned };
+        pointsLog = [{ id: `table-${t.id}-${Date.now().toString(36)}`, at: Date.now(), delta: pointsEarned, title: `Кешбэк в ресторане, стол ${t.tableLabel}` }, ...pointsLog];
         if (amount >= total) t.paid = true;
         return wait({ session: structuredCloneSafe(t), pointsEarned }, 900);
       },
@@ -501,6 +567,10 @@ export function createApi(opts: MockOptions = {}): Api {
         orders = demoOrderHistory(Date.now());
         bookings = [];
         tables = [];
+        lastWeeklySpinAt = 0;
+        bonusSpins = 1;
+        pointsLog = [];
+        personalPromos = [];
         stopList.clear();
         speed = 1;
         timeScale = opts.timeScale ?? 20;

@@ -8,7 +8,8 @@ import type { CartLine, FulfillmentMode } from '@/entities/cart/model/types';
 import type { Address, GeoPoint, Incident, IncidentKind, Order, PaymentMethod } from '@/entities/order/model/types';
 import type { BanquetRequest, Booking, FloorPlan, Restaurant } from '@/entities/restaurant/model/types';
 import type { Promo, Review } from '@/entities/promo/model/types';
-import type { User } from '@/entities/user/model/types';
+import type { LoyaltyState, User } from '@/entities/user/model/types';
+import type { WheelPrize } from '@/entities/user/model/loyalty';
 import type { Gift, TableSession } from '@/entities/table/model/types';
 
 export interface ApiError {
@@ -95,6 +96,13 @@ export interface UserApi {
   addAddress(a: Omit<Address, 'id'>): Promise<User>;
 }
 
+/** Loyalty: points history and the wheel (C12). The server decides the prize; the client only animates to it. */
+export interface LoyaltyApi {
+  state(): Promise<LoyaltyState>;
+  /** Points prizes are credited at once; other prizes become a personal promo code (see CatalogApi.getPromos). */
+  spin(): Promise<{ prize: WheelPrize; promo?: Promo; state: LoyaltyState }>;
+}
+
 /** Dine-in by QR on the table (C17). */
 export interface TableApi {
   /** Opens (or joins) the session for the table encoded in the QR code. */
@@ -122,6 +130,7 @@ export interface Api {
   orders: OrdersApi;
   booking: BookingApi;
   user: UserApi;
+  loyalty: LoyaltyApi;
   table: TableApi;
   gifts: GiftApi;
   director: DirectorApi;

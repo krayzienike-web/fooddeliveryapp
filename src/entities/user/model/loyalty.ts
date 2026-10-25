@@ -25,6 +25,9 @@ export function nextLevel(spend: number): { level: LoyaltyLevelInfo; remaining: 
   return { level: next, remaining: next.threshold - spend, progress: (spend - cur.threshold) / (next.threshold - cur.threshold) };
 }
 
+/** Wheel rules (guidebook §3.12): one weekly spin + one per order from orderMin; prizes live ≥ 7 days. */
+export const WHEEL_RULES = { weeklyEveryDays: 7, orderMin: 1500, prizeTtlDays: 14 } as const;
+
 /** Spin-wheel prizes (C12). Weights sum to 100; one spin per completed order. */
 export interface WheelPrize {
   id: string;

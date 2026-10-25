@@ -8,7 +8,7 @@ import { remainingMinutes, STATUS_TITLE } from '@/entities/order/model/lifecycle
 import { useOrder, useOrders } from '@/entities/order/model/store';
 import type { OrderStatus } from '@/entities/order/model/types';
 import { useSession } from '@/features/auth/model/store';
-import { RESTAURANTS } from '@/mocks/seed/restaurants';
+import { useRestaurants } from '@/entities/restaurant/model/store';
 import { useApi } from '@/services';
 import { hhmm, minutes, rub } from '@/shared/lib/format';
 import { haptic } from '@/shared/lib/haptics';
@@ -89,12 +89,14 @@ export function OrderScreen() {
     return () => clearTimeout(t);
   }, [celebrate]);
 
+  const restaurants = useRestaurants((s) => s.list);
+
   useEffect(() => {
     if (order?.status === 'delivered' || order?.status === 'picked_up') refreshUser();
   }, [order?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!order) return <Screen testID="order-screen" />;
-  const restaurant = RESTAURANTS.find((r) => r.id === order.restaurantId) ?? RESTAURANTS[0];
+  const restaurant = restaurants.find((r) => r.id === order?.restaurantId) ?? restaurants[0];
+  if (!order || !restaurant) return <Screen testID="order-screen" />;
   const pickup = order.mode === 'pickup';
   const final = order.status === 'delivered' || order.status === 'picked_up' || order.status === 'cancelled';
   const onRoad = order.status === 'courier_assigned' || order.status === 'on_the_way' || order.status === 'arriving';

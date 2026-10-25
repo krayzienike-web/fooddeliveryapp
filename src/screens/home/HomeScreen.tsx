@@ -1,5 +1,5 @@
 import { useNavigation } from '@react-navigation/native';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { TAB_BAR_SPACE } from '@/app/navigation/TabBar';
@@ -8,9 +8,9 @@ import { useActiveOrder } from '@/entities/order/model/store';
 import { useSession } from '@/features/auth/model/store';
 import { useCart } from '@/features/cart/model/store';
 import { useAppContext, useDirector } from '@/features/director/model/store';
-import { explainMatch, rankDishes } from '@/features/recommendations/model/engine';
+import { explainMatch, fitsDiet, rankDishes } from '@/features/recommendations/model/engine';
 import { useTaste } from '@/features/recommendations/model/store';
-import { PROMOS } from '@/mocks/seed/promos';
+import { usePromos } from '@/entities/promo/model/store';
 import { radius, space, useTheme } from '@/shared/theme';
 import { FoodImage, Icon, IconButton, PressableScale, Screen, SectionTitle, Segmented, Skeleton, Txt } from '@/shared/ui';
 import { ActiveOrderCard } from '@/widgets/order-capsule/ActiveOrderCard';
@@ -50,8 +50,22 @@ export function HomeScreen() {
   const [promoIdx, setPromoIdx] = useState(0);
 
   const address = user?.addresses.find((a) => a.id === addressId) ?? user?.addresses[0];
-  const picks = useMemo(() => rankDishes(dishes.filter((d) => d.categoryId !== 'drinks'), { profile, diet: user?.diet ?? 'none', ctx, seed: 11 }).slice(0, 10), [dishes, profile, user?.diet, ctx.hour, ctx.weekday, ctx.weather]); // eslint-disable-line react-hooks/exhaustive-deps
-  const promos = PROMOS.slice(0, 5);
+  // Personalization off (Settings): same diet filter, but ranked by popularity instead of the taste profile.
+  const personal = user?.personalization ?? true;
+  const picks = useMemo(
+    () =>
+      personal
+        ? rankDishes(dishes.filter((d) => d.categoryId !== 'drinks'), { profile, diet: user?.diet ?? 'none', ctx, seed: 11 }).slice(0, 10)
+        : dishes.filter((d) => d.categoryId !== 'drinks' && fitsDiet(d, user?.diet ?? 'none')).sort((a, b) => b.popularity - a.popularity).slice(0, 10),
+    [dishes, profile, personal, user?.diet, ctx.hour, ctx.weekday, ctx.weather], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  const allPromos = usePromos((st) => st.list);
+  const loadPromos = usePromos((st) => st.load);
+  useEffect(() => {
+    loadPromos();
+  }, [loadPromos]);
+  // Public promos only on the hero; personal codes and prizes live in «Акции».
+  const promos = allPromos.filter((p) => !p.id.startsWith('prize-')).slice(0, 5);
   const colW = (width - space.l * 2 - space.m) / 2;
 
   const onLogo = () => {
@@ -187,7 +201,7 @@ export function HomeScreen() {
         {/* 7. Personal picks */}
         <SectionTitle title={`${greeting(ctx.hour)}${user ? `, ${user.name}` : ''}`} action="Всё меню" onAction={() => nav.navigate('Tabs', { screen: 'Menu' })} testID="home-all-menu" />
         <Txt v="bodyM" color="textSecondary" style={{ paddingHorizontal: space.l, marginTop: -space.s, marginBottom: space.m }}>
-          {ctx.weather === 'rain' || ctx.weather === 'storm' ? 'Подобрали согревающее — на улице дождь' : profile.onboarded ? 'Подобрали по вашей вкусовой ДНК' : 'Самое популярное в Петербурге сейчас'}
+          {ctx.weather === 'rain' || ctx.weather === 'storm' ? 'Подобрали согревающее — на улице дождь' : personal && profile.onboarded ? 'Подобрали по вашей вкусовой ДНК' : 'Самое популярное в Петербурге сейчас'}
         </Txt>
         <View testID="for-you-list" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.m, paddingHorizontal: space.l }}>
           {status !== 'ready'

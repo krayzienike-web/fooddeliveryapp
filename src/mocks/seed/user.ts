@@ -47,7 +47,8 @@ function lastWeekday(now: number, weekday: number, weeksAgo: number, hour: numbe
 function delivered(id: string, createdAt: number, lines: CartLine[], total: number, address: Address, restaurantId: string): Order {
   return {
     id,
-    number: id.replace('o-', '').toUpperCase(),
+    // Stable 4-digit number derived from the id, like real orders.
+    number: String(1000 + (id.split('').reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7) % 9000)),
     createdAt,
     mode: 'delivery',
     lines,

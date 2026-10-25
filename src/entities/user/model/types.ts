@@ -23,6 +23,8 @@ export interface User {
   diet: DietMode;
   personalization: boolean;
   savedCards: Array<{ id: string; brand: 'mir' | 'visa' | 'mc'; last4: string }>;
+  /** Push notification types the guest agreed to (guidebook §3.13). */
+  notifications?: { status: boolean; offers: boolean; news: boolean };
 }
 
 export interface TasteProfile {
@@ -41,4 +43,20 @@ export interface LoyaltyLevelInfo {
   threshold: number;
   cashback: number;
   perks: string[];
+}
+
+/** A line in the points history. */
+export interface PointsEntry {
+  id: string;
+  at: number;
+  delta: number;
+  title: string;
+}
+
+export interface LoyaltyState {
+  /** Spins available right now. */
+  spins: number;
+  /** When the next weekly spin appears (if the weekly one is used), epoch ms. */
+  nextWeeklySpinAt: number | null;
+  history: PointsEntry[];
 }

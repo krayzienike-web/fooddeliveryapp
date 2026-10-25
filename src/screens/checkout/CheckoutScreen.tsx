@@ -10,7 +10,7 @@ import { useCart } from '@/features/cart/model/store';
 import { useCartTotals } from '@/features/cart/model/useTotals';
 import { SlideToPay } from '@/features/checkout/ui/SlideToPay';
 import { useDirector } from '@/features/director/model/store';
-import { RESTAURANTS } from '@/mocks/seed/restaurants';
+import { useRestaurants } from '@/entities/restaurant/model/store';
 import { useApi } from '@/services';
 import { hhmm, points as fmtPoints, rub } from '@/shared/lib/format';
 import { haptic } from '@/shared/lib/haptics';
@@ -47,7 +47,8 @@ export function CheckoutScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const address = user?.addresses.find((a) => a.id === cart.addressId) ?? user?.addresses[0];
-  const restaurant = RESTAURANTS.find((r) => r.id === (cart.pickupRestaurantId ?? 'r-rubinshteyna'))!;
+  const restaurants = useRestaurants((s) => s.list);
+  const restaurant = restaurants.find((r) => r.id === (cart.pickupRestaurantId ?? 'r-rubinshteyna')) ?? restaurants[0];
   const spendable = maxSpendablePoints(totals.itemsTotal - totals.discount, user?.points ?? 0);
   const slots = useMemo(() => {
     const now = Date.now();
@@ -107,6 +108,8 @@ export function CheckoutScreen() {
       {onPress ? <Icon name="chevron-right" color="textTertiary" /> : null}
     </PressableScale>
   );
+
+  if (!restaurant) return <Screen testID="checkout-screen" />;
 
   return (
     <Screen testID="checkout-screen">

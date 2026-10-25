@@ -9,7 +9,7 @@ import { useAppContext, useDirector } from '@/features/director/model/store';
 import { predict, type Prediction } from '@/features/predictions/model/predict';
 import { useTaste } from '@/features/recommendations/model/store';
 import { useSession } from '@/features/auth/model/store';
-import { RESTAURANTS } from '@/mocks/seed/restaurants';
+import { useRestaurants } from '@/entities/restaurant/model/store';
 import { rub } from '@/shared/lib/format';
 import { haptic } from '@/shared/lib/haptics';
 import { radius, space, useTheme } from '@/shared/theme';
@@ -27,6 +27,7 @@ export function usePrediction(): Prediction | null {
   const muted = useTaste((s) => s.profile.mutedSuggestionKinds);
   const near = useDirector((s) => s.nearRestaurant);
   const user = useSession((s) => s.user);
+  const nearName = useRestaurants((s) => s.list[0]?.name);
   const personalization = user?.personalization ?? true;
   return useMemo(() => {
     if (!personalization) return null;
@@ -47,12 +48,12 @@ export function usePrediction(): Prediction | null {
       cartUpdatedAt,
       viewCounts,
       orderedDishIds: [...new Set(delivered.flatMap((o) => o.lines.map((l) => l.dishId)))],
-      nearRestaurantName: near ? RESTAURANTS[0].name : undefined,
+      nearRestaurantName: near ? nearName : undefined,
       birthdayInDays: user ? birthdayInDays : undefined,
       muted,
     });
     return list[0] ?? null;
-  }, [ctx.now, ctx.weather, orders, lines, cartUpdatedAt, viewCounts, muted, near, user, personalization]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ctx.now, ctx.weather, orders, lines, cartUpdatedAt, viewCounts, muted, near, nearName, user, personalization]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 export function PredictionCard({ prediction }: { prediction: Prediction }) {
