@@ -67,3 +67,13 @@ test('large text uses the 3:1 threshold', async ({ page }) => {
   const v = await collectUxViolations(page, { checks: ['contrast'] });
   expect(v.map((x) => x.testId)).toEqual(['b-title']);
 });
+
+test('screen scope skips other mounted screens but keeps global chrome', async ({ page }) => {
+  await page.setContent(html(`
+    <div data-testid="home-screen"><div tabindex="0" data-testid="home-logo" style="width:20px;height:20px">x</div></div>
+    <div data-testid="dish-screen"><button class="b" data-testid="dish-primary-cta">OK</button></div>
+    <div tabindex="0" data-testid="order-capsule" style="width:100px;height:30px">capsule</div>`));
+  const v = await collectUxViolations(page, { screen: 'dish', checks: ['tapTargets'] });
+  expect(v.map((x) => x.testId)).toEqual(['order-capsule']);
+  expect(await collectUxViolations(page, { screen: 'dish', scope: null, checks: ['tapTargets'] })).toHaveLength(2);
+});

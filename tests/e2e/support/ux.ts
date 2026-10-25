@@ -28,6 +28,12 @@ export interface UxOptions {
   contrastSelector?: string;
   /** Extra CSS selectors excluded from all checks (e.g. third-party map widgets). */
   ignore?: string[];
+  /**
+   * Only check elements inside this root, plus global chrome that lives outside any `[data-testid$="-screen"]`
+   * (tab bar, cart bar, status capsule, toasts, sheets). Default: `[data-testid="<screen>-screen"]` when `screen` is set
+   * and that root is rendered. Needed because RN keeps other tabs (off-screen) and screens under transparent modals mounted.
+   */
+  scope?: string | null;
 }
 
 export interface UxViolation {
@@ -53,11 +59,15 @@ export async function collectUxViolations(page: Page, opts: UxOptions = {}): Pro
     tappable: TAPPABLE_SELECTOR,
     contrastSel: opts.contrastSelector ?? DEFAULT_CONTRAST_SELECTOR,
     ignore: opts.ignore ?? [],
+    scope: opts.scope === undefined ? (opts.screen ? `[data-testid="${opts.screen}-screen"]` : null) : opts.scope,
   };
   return page.evaluate((a) => {
     const out: { check: string; testId: string | null; detail: string }[] = [];
     const vw = document.documentElement.clientWidth;
+    const scopeRoots = a.scope ? [...document.querySelectorAll(a.scope)].filter((r) => getComputedStyle(r).display !== 'none') : [];
+    const outOfScope = (el: Element) => scopeRoots.length > 0 && !scopeRoots.some((r) => r.contains(el)) && !!el.closest('[data-testid$="-screen"]');
     const ignored = (el: Element, check: string) => {
+      if (outOfScope(el)) return true;
       if (a.ignore.some((s) => el.closest(s))) return true;
       const host = el.closest('[data-ux-ignore]');
       return !!host && (host.getAttribute('data-ux-ignore') ?? '').split(',').map((x) => x.trim()).some((x) => x === check || x === 'all');

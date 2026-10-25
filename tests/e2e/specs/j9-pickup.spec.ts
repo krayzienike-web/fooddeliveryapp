@@ -1,35 +1,51 @@
 /**
  * J9 «Самовывоз»: я рядом с рестораном — забрать без ожидания.
- * Сценарий: Режим «Самовывоз» → ресторан → оплата → «Я подхожу» → номер полки.
+ * Сценарий: Режим «Самовывоз» → ресторан → оплата (−10%) → «Я подхожу» → номер полки → «Я на месте» → выдан.
+ * Mock: «Я подхожу» while cooking fast-forwards the kitchen; ready_for_pickup waits until «Я на месте».
  */
-import { test, expect, TID, expectGoodUx } from '../support/fixtures';
+import { test, expect, TID, expectUx } from '../support/fixtures';
+
+const rubles = (s: string) => Number(s.replace(/\D/g, ''));
 
 test.describe('J9 · Самовывоз', () => {
-  test.fixme('pickup mode → restaurant → pay (−10%) → «Я подхожу» → shelf number', async ({ app, page }) => {
-    test.setTimeout(120_000);
-    await app.open({ loggedIn: true, speed: 60 });
+  test('pickup mode → −10% → pay → «Я подхожу» → shelf number → «Я на месте» → picked up', async ({ app, page }) => {
+    test.setTimeout(90_000);
+    await app.open({ loggedIn: true, speed: 4 });
 
-    // 1. Home: switch to «Самовывоз».
+    // 1. Home: «Самовывоз» switches the header to the restaurant.
     await app.tap(TID.home.modePickup);
-    await expect(app.tid(TID.home.modePickup)).toHaveAttribute('aria-selected', 'true');
+    await expect(app.tid(TID.home.address)).toContainText('Самовывоз из');
 
-    // 2. Add a dish → cart → checkout in pickup mode: restaurant picker, no address, 10% pickup discount visible.
-    await page.locator('[data-testid^="home-dish-add-"]').first().click();
+    // 2. Cart: pickup discount, no delivery fee, no free-delivery progress.
+    await app.addFromFeed();
     await app.openCart();
-    await app.tap(TID.cart.primaryCta);
-    if (await app.auth.root.isVisible().catch(() => false)) await app.loginWithSms();
-    await app.checkout.expectOpen();
-    await expect(app.tid(TID.checkout.address)).toBeHidden();
-    await page.locator('[data-testid^="checkout-restaurant-"]').first().click();
-    await expect(page.getByText(/−10%|самовывоз/i).first()).toBeVisible();
-    await expectGoodUx(page, { screen: 'checkout-pickup' });
-    await app.tap(TID.checkout.primaryCta);
+    await expect(app.cart.root).toContainText('Скидка за самовывоз');
+    await expect(app.tid(TID.cart.toFreeDelivery)).toHaveCount(0);
+    const total = rubles(await app.tid(TID.cart.total).innerText());
 
-    // 3. Order screen (pickup flow, no courier) → when «Готов к выдаче», tap «Я подхожу» → shelf number shown.
+    // 3. Checkout: restaurant instead of address, same total.
+    await app.tap(TID.cart.primaryCta);
+    await app.checkout.expectOpen();
+    await expect(app.tid(TID.checkout.address)).toHaveCount(0);
+    await expect(app.prefixed('checkout-restaurant-', app.checkout.root)).toContainText('готов за');
+    expect(rubles(await app.tid(TID.checkout.total).innerText())).toBe(total);
+    await expectUx(page, 'checkout');
+    await app.slideToPay();
     await app.order.expectOpen();
-    await expect(app.tid(TID.order.courierMap)).toBeHidden();
-    await expect(app.tid(TID.order.pickupArriving)).toBeVisible({ timeout: 60_000 });
+
+    // 4. Pickup order: no courier map; «Я подхожу» → kitchen hurries → shelf number.
+    await expect(app.tid(TID.order.courierMap)).toHaveCount(0);
+    await expect(app.tid(TID.order.progress)).toContainText('Получен');
     await app.tap(TID.order.pickupArriving);
-    await expect(app.tid(TID.order.pickupShelf)).toHaveText(/\d+|[A-ZА-Я]-?\d+/);
+    await app.expectToast('Кухня знает, что вы рядом');
+    await expect(app.tid(TID.order.pickupShelf)).toHaveText(/\S+/, { timeout: 45_000 });
+    await app.expectStatus(/Готов/);
+
+    // 5. «Я на месте — выдайте заказ» → picked up.
+    await expect(app.tid(TID.order.pickupArriving)).toContainText('Я на месте');
+    await app.tap(TID.order.pickupArriving);
+    await expect(app.order.root).toContainText('Приятного аппетита!', { timeout: 15_000 });
+    await expect(app.tid(TID.order.rateStar(5))).toBeVisible();
+    await app.expectNoErrors();
   });
 });

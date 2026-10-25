@@ -1,217 +1,405 @@
 /**
  * Single source of truth for testIDs used by E2E specs (mirrored in docs/testing.md).
+ * Reconciled with `grep -rn "testID=" src` — every id below exists in the app unless it sits in a
+ * `planned` block (screens that are still placeholders: profile, wheel; loyalty, promos, promo, ar, settings have only a root).
  *
  * Convention: kebab-case `screen-element[-qualifier]`.
- *  - `<screen>-screen`        root container of every screen (used to wait for navigation)
- *  - `<screen>-primary-cta`   THE main action of the screen (UX rule: at most one visible at a time)
- *  - `<screen>-<element>-<id>` items of lists; `<id>` is the entity id (dish id, table id …), made kebab-safe by `kebab()`
- *  - `*-live`                 elements whose content changes over time (timers, maps, video) — masked in screenshots
+ *  - `<screen>-screen`         root container of every screen (used to wait for navigation)
+ *  - `<screen>-primary-cta`    THE main action of the screen (UX rule: at most one visible at a time)
+ *  - `<screen>-<element>-<id>` items of lists. The app uses the entity id VERBATIM (dish/order ids are already
+ *                              kebab-case; enum ids keep underscores: `director-incident-kitchen_delay`,
+ *                              `checkout-payment-card_courier`). Use `item()` for those, `kebab()` only for planned ids.
+ *  - `*-live`                  elements whose content changes over time (timers, maps, video) — masked in screenshots
+ *  - shared components derive child ids: Stepper `<id>-inc` / `<id>-dec`, Segmented `<id>-<optionId>`,
+ *    Header `<id>-back` (or `header-back` when the Header has no testID).
  * react-native-web renders `testID` as `data-testid`.
  *
  * When a screen changes: update this file first, then the page object / spec, then docs/testing.md.
  */
 
-/** Makes an arbitrary id safe for a testID: "19:00" → "19-00", "Pizza_1" → "pizza-1". */
+/** Makes an arbitrary id safe for a testID: "19:00" → "19-00", "Pizza_1" → "pizza-1". For planned screens only. */
 export const kebab = (s: string | number) =>
   String(s)
     .toLowerCase()
     .replace(/[^a-z0-9а-яё]+/gi, '-')
     .replace(/^-|-$/g, '');
 
-const item = (prefix: string) => (id: string | number) => `${prefix}-${kebab(id)}`;
+/** `${prefix}-${id}` with the id verbatim — this is what the app does. */
+const item = (prefix: string) => (id: string | number) => `${prefix}-${id}`;
+const kebabItem = (prefix: string) => (id: string | number) => `${prefix}-${kebab(id)}`;
 
 export const TID = {
   /** Global chrome, visible on many screens. */
   global: {
     tab: { home: 'tabbar-home', menu: 'tabbar-menu', assistant: 'tabbar-assistant', restaurants: 'tabbar-restaurants', profile: 'tabbar-profile' },
-    cartBar: 'cart-bar',
+    cartBar: 'cart-bar', // only inside the tab navigator (hidden on the Assistant tab)
     cartBarTotal: 'cart-bar-total',
     cartBarOpen: 'cart-bar-open',
-    orderCapsule: 'order-capsule',
+    orderCapsule: 'order-capsule', // hidden on Order, Checkout, Reels, Onboarding, AR, Auth, Dish, Wheel
     orderCapsuleStatus: 'order-capsule-status',
     toast: 'toast',
-    back: 'header-back',
+    back: 'header-back', // Header without its own testID
+  },
+  /** DishCard widget — shared by home feed, menu and search (scope it to a screen root). */
+  dishCard: {
+    card: item('dish-card'),
+    add: item('dish-add'),
+    qty: item('dish-qty'), // Stepper: dish-qty-<id>-inc / -dec, appears after the first add
+    qtyInc: (id: string) => `dish-qty-${id}-inc`,
+    qtyDec: (id: string) => `dish-qty-${id}-dec`,
+    why: item('dish-why'), // «почему подобрали», only when the taste profile is onboarded
   },
   onboarding: {
     screen: 'onboarding-screen',
-    option: item('onboarding-option'), // taste-DNA choice (axis or dish id)
+    like: 'onboarding-option-like', // «Хочу» (swipe right)
+    no: 'onboarding-option-no', // «Не моё» (swipe left)
     progress: 'onboarding-progress',
-    skip: 'onboarding-skip',
-    primaryCta: 'onboarding-primary-cta', // «Дальше» / «Готово»
+    skip: 'onboarding-skip', // «Сразу в меню» on intro, «Пропустить» in the deck
+    primaryCta: 'onboarding-primary-cta', // «Найти мой вкус» on intro, «Поехали» on the radar
   },
   home: {
     screen: 'home-screen',
+    logo: 'home-logo', // triple tap → director panel
+    mode: 'home-mode',
     modeDelivery: 'home-mode-delivery',
     modePickup: 'home-mode-pickup',
     address: 'home-address',
     search: 'home-search',
-    forYouList: 'home-for-you-list',
-    dishCard: item('home-dish-card'),
-    dishAdd: item('home-dish-add'),
-    dishWhy: item('home-dish-why'),
+    aiEntry: 'home-ai-entry',
+    reelsEntry: 'home-reels-entry',
+    allMenu: 'home-all-menu',
+    forYouList: 'for-you-list', // NB: not prefixed with "home-"
     category: item('home-category'),
     promo: item('home-promo'),
-    reelsEntry: 'home-reels-entry',
-    prediction: 'home-prediction-card', // D2: at most one
-    predictionWhy: 'home-prediction-why',
-    predictionMute: 'home-prediction-mute',
-    predictionCta: 'home-prediction-cta', // «Повторить»
+    repeat: item('home-repeat'), // by order id
+    activeOrder: 'home-active-order',
+    prediction: 'prediction-card', // D2: at most one
+    predictionWhy: 'prediction-why',
+    predictionMute: 'prediction-mute',
+    predictionCta: 'prediction-cta', // «Повторить»
   },
   reels: {
     screen: 'reels-screen',
-    item: item('reels-item'),
-    video: 'reels-video-live',
+    // Each rendered reel repeats the ids below (FlatList renders 2–3 items) — use `.first()`.
     like: 'reels-like',
-    dislike: 'reels-dislike',
-    primaryCta: 'reels-primary-cta', // «В корзину»
+    sound: 'reels-sound',
+    ar: 'reels-ar',
+    dishCard: 'reels-dish-card',
+    dishOpen: 'reels-dish-open',
+    add: 'reels-add', // «+» = add to cart from the video
     close: 'reels-close',
+    cart: 'reels-cart',
   },
   menu: {
     screen: 'menu-screen',
-    categoryTab: item('menu-category-tab'),
-    dishCard: item('menu-dish-card'),
-    dishAdd: item('menu-dish-add'),
+    search: 'menu-search',
+    filters: 'menu-filters',
+    filtersSheet: 'menu-filters-sheet',
+    filter: item('menu-filter'),
+    filtersApply: 'menu-filters-primary-cta',
+    tab: item('menu-tab'), // by category id
+    section: item('menu-section'),
   },
   search: {
     screen: 'search-screen',
+    back: 'search-back',
     input: 'search-input',
-    result: item('search-result'),
+    clear: 'search-clear',
+    popular: item('search-popular'), // by the visible label, e.g. search-popular-Пепперони
     didYouMean: 'search-did-you-mean',
-    empty: 'search-empty',
+    askAi: 'search-ask-ai', // «Спросить у Шефа ИИ» (only when nothing is found)
   },
   dish: {
     screen: 'dish-screen',
     title: 'dish-title',
-    price: 'dish-price',
+    kbju: 'dish-kbju',
+    more: 'dish-more',
+    burst: 'dish-burst',
+    burstClose: 'dish-burst-close',
+    ar: 'dish-ar',
+    like: 'dish-like',
+    close: 'dish-close',
+    group: item('dish-group'), // Segmented modifier group: dish-group-<groupId>-<optionId>
     option: item('dish-option'),
-    removeIngredient: item('dish-remove-ingredient'),
+    removeIngredient: item('dish-remove'),
+    pair: item('dish-pair'),
+    qty: 'dish-qty',
     qtyInc: 'dish-qty-inc',
     qtyDec: 'dish-qty-dec',
-    qty: 'dish-qty',
     primaryCta: 'dish-primary-cta', // «В корзину · 590 ₽»
-    close: 'dish-close',
   },
   cart: {
     screen: 'cart-screen',
+    close: 'cart-close',
+    clear: 'cart-clear',
+    clearConfirm: 'cart-clear-confirm',
+    toFreeDelivery: 'cart-to-free-delivery',
+    groupBanner: 'cart-group-banner',
     line: item('cart-line'), // by dish id
-    lineInc: item('cart-line-inc'),
-    lineDec: item('cart-line-dec'),
+    qty: item('cart-qty'),
+    lineInc: (dishId: string) => `cart-qty-${dishId}-inc`,
+    lineDec: (dishId: string) => `cart-qty-${dishId}-dec`,
+    upsell: item('cart-upsell'),
+    cutlery: 'cart-cutlery',
+    promoRow: 'cart-promo-row',
+    promoSheet: 'cart-promo-sheet',
     promoInput: 'cart-promo-input',
     promoApply: 'cart-promo-apply',
-    promoError: 'cart-promo-error',
-    toFreeDelivery: 'cart-to-free-delivery',
-    total: 'cart-total',
+    promoRemove: 'cart-promo-remove',
     groupInvite: 'cart-group-invite',
-    groupMember: item('cart-group-member'),
-    empty: 'cart-empty',
-    primaryCta: 'cart-primary-cta', // «Оформить»
+    total: 'cart-total',
+    primaryCta: 'cart-primary-cta', // «К оформлению» (empty cart: «Открыть меню»)
+  },
+  groupCart: {
+    screen: 'group-cart-screen',
+    back: 'group-cart-header-back',
+    split: 'group-split',
+    primaryCta: 'group-cart-primary-cta',
   },
   auth: {
     screen: 'auth-screen',
+    close: 'auth-close',
     phoneInput: 'auth-phone-input',
-    codeInput: 'auth-code-input',
+    codeInput: 'auth-code-input', // hidden input over 4 boxes; auto-submits on the 4th digit
     codeError: 'auth-code-error',
     resend: 'auth-resend',
     primaryCta: 'auth-primary-cta', // «Получить код»
   },
   checkout: {
     screen: 'checkout-screen',
-    modeDelivery: 'checkout-mode-delivery',
-    modePickup: 'checkout-mode-pickup',
-    address: 'checkout-address',
-    restaurant: item('checkout-restaurant'),
+    back: 'checkout-header-back',
+    address: 'checkout-address', // opens the address sheet
+    addressOption: item('checkout-address'), // by address id, inside the sheet
+    restaurant: item('checkout-restaurant'), // pickup only
+    time: 'checkout-time',
     timeAsap: 'checkout-time-asap',
-    payment: item('checkout-payment'), // card | sbp | gpay | cash | card-courier | split
-    pointsToggle: 'checkout-points-toggle',
-    tips: item('checkout-tips'),
+    payment: 'checkout-payment', // opens the payment sheet
+    paymentMethod: item('checkout-payment'), // sbp | card | gpay | card_courier | cash
+    points: 'checkout-points',
+    comment: 'checkout-comment',
+    commentInput: 'checkout-comment-input',
+    tips: item('checkout-tips'), // 0 | 50 | 100 | 150
     total: 'checkout-total',
-    primaryCta: 'checkout-primary-cta', // «Оплатить 1 990 ₽»
+    weatherNotice: 'checkout-weather-notice',
+    switchPickup: 'checkout-switch-pickup',
+    primaryCta: 'checkout-primary-cta', // SlideToPay «Оплатить 1 990 ₽» (tap also works)
+  },
+  address: {
+    screen: 'address-screen',
+    back: 'address-back',
+    current: 'address-current',
+    zone: 'address-zone',
+    search: 'address-search',
+    suggestion: item('address-suggestion'), // by house
+    field: item('address'), // apartment | entrance | intercom | comment
+    primaryCta: 'address-primary-cta',
   },
   order: {
     screen: 'order-screen',
+    back: 'order-header-back',
+    help: 'order-help',
     statusTitle: 'order-status-title',
-    progress: 'order-progress',
     eta: 'order-eta-live',
+    progress: 'order-progress',
+    pickupShelf: 'order-pickup-shelf',
     kitchen: 'order-kitchen-live',
     chef: 'order-chef',
     courierMap: 'order-courier-map-live',
     courier: 'order-courier',
+    courierChat: 'order-courier-chat',
+    courierCall: 'order-courier-call',
     incident: 'order-incident-card',
-    incidentResolution: item('order-incident-resolution'), // by resolution id: replace | wait | cancel | retry …
-    compensation: 'order-compensation',
-    cancel: 'order-cancel',
-    pickupArriving: 'order-pickup-arriving', // «Я подхожу»
-    pickupShelf: 'order-pickup-shelf',
-    rateStar: item('order-rate-star'),
-    primaryCta: 'order-primary-cta',
+    incidentResolution: item('order-incident-resolution'), // by resolution id: wait | cancel | replace …
+    pickupArriving: 'order-pickup-arriving', // «Я подхожу» / «Я на месте — выдайте заказ»
+    rateStar: item('order-rate-star'), // 1..5, after delivery
+    primaryCta: 'order-primary-cta', // «Крутить колесо призов», after delivery
+    itemsToggle: 'order-items-toggle',
+    support: 'order-support',
   },
-  wheel: {
-    screen: 'wheel-screen',
-    primaryCta: 'wheel-primary-cta', // «Крутить»
-    result: 'wheel-result',
-    close: 'wheel-close',
+  orders: {
+    screen: 'orders-screen',
+    item: item('orders-item'),
+    repeat: item('orders-repeat'),
+  },
+  rate: {
+    screen: 'rate-screen',
+    star: item('rate-star'),
+    aiPhoto: 'rate-ai-photo',
+    solve: 'rate-solve', // ≤ 3 stars
+    text: 'rate-text',
+    primaryCta: 'rate-primary-cta',
+  },
+  support: {
+    screen: 'support-screen',
+    back: 'support-header-back',
+    topic: item('support-topic'), // missing | wrong | cold | late | other
+    item: item('support-item'), // by dish id
+    itemsNext: 'support-items-next',
+    refundPoints: 'support-refund-points',
+    refundCard: 'support-refund-card',
+    human: 'support-human',
+    input: 'support-input',
+    send: 'support-send',
   },
   assistant: {
     screen: 'assistant-screen',
+    mode: 'assistant-mode',
+    reset: 'assistant-reset',
+    messages: 'assistant-messages',
+    starter: item('assistant-starter'), // 0 «Ужин на четверых до 3000 ₽», 1 «Столик на завтра…», 2 «…острое…», 3 «Повтори как обычно»/«Где мой заказ?»
+    reply: 'assistant-reply',
+    replyText: 'assistant-reply-text',
+    thinking: 'assistant-thinking',
+    chip: item('assistant-chip'), // index in the LAST reply; prefer matching by text
     input: 'assistant-input',
+    voice: 'assistant-voice',
     send: 'assistant-send',
-    mic: 'assistant-mic',
-    message: item('assistant-message'), // index
-    suggestion: item('assistant-suggestion'), // dish id
-    chip: item('assistant-chip'),
-    primaryCta: 'assistant-primary-cta', // «Добавить всё»
+    stop: 'assistant-stop',
+    cardDishes: 'assistant-card-dishes',
+    dish: item('assistant-dish'),
+    addAll: 'assistant-dishes-add-all', // «Добавить всё · 2 980 ₽»
+    toCart: 'assistant-dishes-checkout', // after «Добавить всё»: «В корзине · перейти»
+    cardBooking: 'assistant-card-booking',
+    bookingOpen: 'assistant-booking-open',
+    cardBanquet: 'assistant-card-banquet',
+    banquetOpen: 'assistant-banquet-open',
+    cardOrder: 'assistant-card-order',
+    cardSupport: 'assistant-card-support',
+    supportOpen: 'assistant-support-open',
   },
+  /** Director panel (D0) is a Sheet opened by a triple tap on `home-logo`; there is no close button (tap the backdrop). */
+  director: {
+    panel: 'director-panel',
+    incident: item('director-incident'), // IncidentKind verbatim: director-incident-kitchen_delay
+    day: item('director-day'), // 0 = Sunday … 6
+    hour: item('director-hour'), // 9 | 13 | 19 | 23
+    friday: 'director-friday',
+    weather: item('director-weather'), // clear | rain | snow | storm
+    near: 'director-near',
+    speed: item('director-speed'), // 1 | 2 | 4 | 8
+    reset: 'director-reset',
+  },
+
+  // ---- placeholders: only `<screen>-screen` exists today; the rest is the agreed contract ----------------
   restaurants: {
     screen: 'restaurants-screen',
+    view: 'restaurants-view', // Segmented: restaurants-view-list | restaurants-view-map
+    item: item('restaurants-item'), // by restaurant id (list view)
     map: 'restaurants-map',
-    item: item('restaurants-item'),
+    mapItem: item('restaurants-map-item'), // card under the map: 1st tap selects, 2nd opens
+    banquet: 'restaurants-banquet',
+    qr: 'restaurants-qr',
+    gift: 'restaurants-gift',
   },
   restaurant: {
     screen: 'restaurant-screen',
-    book: 'restaurant-primary-cta', // «Забронировать стол»
-    banquet: 'restaurant-banquet',
-    pickup: 'restaurant-pickup',
+    back: 'restaurant-back',
+    gallery: 'restaurant-gallery',
+    pickup: 'restaurant-pickup', // toast + Menu tab
+    banquet: 'restaurant-banquet', // only with a banquet hall
+    route: 'restaurant-route',
+    call: 'restaurant-call',
+    map: 'restaurant-map',
+    book: 'restaurant-book', // «Забронировать стол» — the screen's one primary action (not named *-primary-cta)
   },
   booking: {
     screen: 'booking-screen',
-    date: item('booking-date'), // yyyy-mm-dd
+    back: 'booking-header-back',
+    date: item('booking-date'), // index: 0 = today, 1 = tomorrow …
+    guests: 'booking-guests', // Stepper: -inc / -dec; > 12 guests → Banquet
     guestsInc: 'booking-guests-inc',
     guestsDec: 'booking-guests-dec',
+    slots: 'booking-slots',
+    slot: (hhmm: string) => `booking-slot-${hhmm.replace(':', '')}`, // "19:00" → booking-slot-1900
     floorPlan: 'booking-floor-plan',
-    table: item('booking-table'),
-    time: item('booking-time'), // "19:00" → booking-time-19-00
-    preorderAdd: item('booking-preorder-add'),
-    primaryCta: 'booking-primary-cta', // «Забронировать»
-    confirmation: 'booking-confirmation',
+    table: item('booking-table'), // by table id, e.g. booking-table-B2; busy/small → aria-disabled
+    tableSummary: 'booking-table-summary',
+    occasion: item('booking-occasion'),
+    preorderToggle: 'booking-preorder-toggle',
+    preorderFromCart: 'booking-preorder-from-cart',
+    preorder: item('booking-preorder'), // Stepper per dish: booking-preorder-<dishId>-inc
+    submit: 'booking-submit', // logged out → Auth → back here
+    done: 'booking-done',
+    calendar: 'booking-calendar',
+    finish: 'booking-finish',
   },
   banquet: {
     screen: 'banquet-screen',
-    guests: 'banquet-guests-slider',
-    budget: 'banquet-budget-slider',
-    format: item('banquet-format'),
-    generate: 'banquet-generate',
-    menuItem: item('banquet-menu-item'),
+    back: 'banquet-header-back',
+    format: 'banquet-format', // Segmented: banquet-format-banquet | -buffet | -catering
+    guests: 'banquet-guests', // Slider (role=adjustable; tap on the track jumps)
+    budget: 'banquet-budget', // Slider, min = honest minimum for the menu
+    date: item('banquet-date'),
+    occasion: item('banquet-occasion'),
+    hall: item('banquet-hall'), // by restaurant id
+    menu: 'banquet-menu',
+    reshuffle: 'banquet-reshuffle',
     total: 'banquet-total',
-    primaryCta: 'banquet-primary-cta', // «Отправить менеджеру»
+    send: 'banquet-send', // «Отправить менеджеру»
     sent: 'banquet-sent',
+    finish: 'banquet-finish',
+  },
+  qrMenu: {
+    screen: 'qr-menu-screen',
+    back: 'qr-header-back',
+    viewfinder: 'qr-viewfinder',
+    demoScan: 'qr-demo-scan',
+    callWaiter: 'qr-call-waiter',
+    add: item('qr-add'), // order more to the table, by dish id
+    splitMode: 'qr-split-mode', // Segmented: qr-split-mode-all | -equal | -items
+    people: 'qr-people', // Stepper (equal split)
+    bill: 'qr-bill',
+    billItem: item('qr-bill-item'), // index; selectable in «Моё»
+    tips: item('qr-tips'), // 0 | 5 | 10 | 15 (%)
+    pay: 'qr-pay',
+    paid: 'qr-paid',
+    rate: 'qr-rate',
+    finish: 'qr-finish',
+  },
+  gift: {
+    screen: 'gift-screen',
+    back: 'gift-header-back',
+    preview: 'gift-preview',
+    design: item('gift-design'), // fire | party | thanks
+    amount: item('gift-amount'), // 1000 | 2000 | 3000 | 5000
+    name: 'gift-name',
+    phone: 'gift-phone',
+    message: item('gift-message'),
+    whenNow: 'gift-when-now',
+    when: item('gift-when'),
+    send: 'gift-send', // disabled until name + 10-digit phone
+    sent: 'gift-sent',
+    code: 'gift-code',
+    finish: 'gift-finish',
   },
   profile: {
     screen: 'profile-screen',
-    level: 'profile-level',
-    progressRing: 'profile-progress-ring',
-    points: 'profile-points',
-    achievements: 'profile-achievements',
-    achievement: item('profile-achievement'),
-    history: 'profile-history',
-    login: 'profile-login',
-    director: 'profile-director',
+    planned: {
+      level: 'profile-level',
+      progressRing: 'profile-progress-ring',
+      points: 'profile-points',
+      achievements: 'profile-achievements',
+      achievement: kebabItem('profile-achievement'),
+      history: 'profile-history',
+      login: 'profile-login',
+      director: 'profile-director',
+      orders: 'profile-orders',
+    },
   },
-  director: {
-    screen: 'director-screen',
-    incident: item('director-incident'), // IncidentKind, e.g. director-incident-kitchen-delay
-    speed: item('director-speed'), // multiplier: director-speed-10
-    weather: item('director-weather'),
-    reset: 'director-reset',
-    close: 'director-close',
+  wheel: {
+    screen: 'wheel-screen',
+    planned: { primaryCta: 'wheel-primary-cta', result: 'wheel-result', close: 'wheel-close' },
   },
+  loyalty: { screen: 'loyalty-screen' },
+  promos: { screen: 'promos-screen' },
+  promo: { screen: 'promo-screen' },
+  ar: { screen: 'ar-screen' },
+  settings: { screen: 'settings-screen' },
 } as const;
+
+/** Every literal testID the specs rely on (used by the registry self-check). */
+export function literalIds(node: unknown = TID, out: string[] = []): string[] {
+  if (typeof node === 'string') out.push(node);
+  else if (node && typeof node === 'object') for (const [k, v] of Object.entries(node)) if (k !== 'planned') literalIds(v, out);
+  return out;
+}
