@@ -1,15 +1,17 @@
 const NBSP = ' ';
-const NNBSP = ' ';
 
-/** 1290 → «1 290 ₽» (narrow no-break space between thousands, no-break space before ₽). */
+/**
+ * 1290 → «1 290 ₽». Thousands and the ₽ are joined with a regular no-break space:
+ * the narrow U+202F renders ~2px wide in Onest/Unbounded and the digits looked glued together.
+ */
 export function rub(value: number): string {
   const sign = value < 0 ? '−' : '';
-  const s = Math.abs(Math.round(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, NNBSP);
+  const s = Math.abs(Math.round(value)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
   return `${sign}${s}${NBSP}₽`;
 }
 
 export function points(value: number): string {
-  return `${Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, NNBSP)}${NBSP}Б`;
+  return `${Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, NBSP)}${NBSP}Б`;
 }
 
 export function plural(n: number, one: string, few: string, many: string): string {

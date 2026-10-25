@@ -9,6 +9,7 @@ import type { Address, GeoPoint, Incident, IncidentKind, Order, PaymentMethod } 
 import type { BanquetRequest, Booking, FloorPlan, Restaurant } from '@/entities/restaurant/model/types';
 import type { Promo, Review } from '@/entities/promo/model/types';
 import type { User } from '@/entities/user/model/types';
+import type { Gift, TableSession } from '@/entities/table/model/types';
 
 export interface ApiError {
   code: 'network' | 'validation' | 'not_found' | 'unauthorized' | 'conflict' | 'payment_declined' | 'out_of_zone' | 'rate_limited';
@@ -94,6 +95,19 @@ export interface UserApi {
   addAddress(a: Omit<Address, 'id'>): Promise<User>;
 }
 
+/** Dine-in by QR on the table (C17). */
+export interface TableApi {
+  /** Opens (or joins) the session for the table encoded in the QR code. */
+  join(qr: string): Promise<TableSession>;
+  callWaiter(sessionId: string): Promise<{ etaMinutes: number }>;
+  addItems(sessionId: string, items: Array<{ dishId: string; qty: number }>): Promise<TableSession>;
+  pay(sessionId: string, amount: number, itemIds?: string[]): Promise<{ session: TableSession; pointsEarned: number }>;
+}
+
+export interface GiftApi {
+  send(input: Omit<Gift, 'id' | 'code' | 'createdAt'>): Promise<Gift>;
+}
+
 /** Demo-only controls ("панель режиссёра", D0). Never shipped to production. */
 export interface DirectorApi {
   triggerIncident(orderId: string, kind: IncidentKind): Promise<Incident | null>;
@@ -108,5 +122,7 @@ export interface Api {
   orders: OrdersApi;
   booking: BookingApi;
   user: UserApi;
+  table: TableApi;
+  gifts: GiftApi;
   director: DirectorApi;
 }

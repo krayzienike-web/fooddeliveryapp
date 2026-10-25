@@ -8,7 +8,8 @@ import type { Incident, IncidentKind, Order, OrderStatus } from '@/entities/orde
 import { buildIncident, compensationFor, shouldNotify } from '@/entities/order/model/incidents';
 import { distanceMeters, flowFor, isFinal, nextStatus } from '@/entities/order/model/lifecycle';
 import type { BanquetRequest, Booking } from '@/entities/restaurant/model/types';
-import { levelFor } from '@/entities/user/model/loyalty';
+import { LOYALTY_LEVELS, levelFor } from '@/entities/user/model/loyalty';
+import type { Gift, TableSession } from '@/entities/table/model/types';
 import type { User } from '@/entities/user/model/types';
 import { CATEGORIES, DISHES, DISH_INDEX } from '@/mocks/seed/menu';
 import { MODIFIERS } from '@/mocks/seed/modifiers';
@@ -63,6 +64,8 @@ export function createApi(opts: MockOptions = {}): Api {
   let orders: Order[] = demoOrderHistory(bootNow);
   let bookings: Booking[] = [];
   const banquets: BanquetRequest[] = [];
+  let tables: TableSession[] = [];
+  const gifts: Gift[] = [];
   const subs = new Map<string, Set<(o: Order) => void>>();
   const timers = new Map<string, ReturnType<typeof setInterval>>();
   const statusEnteredAt = new Map<string, number>();
@@ -404,6 +407,65 @@ export function createApi(opts: MockOptions = {}): Api {
       },
     },
 
+    table: {
+      join: (qr) => {
+        // Demo QR: «zhar://table/<restaurantId>/<label>»; anything else opens the demo table.
+        const m = /table\/([\w-]+)\/(\w+)/.exec(qr);
+        const restaurantId = m && RESTAURANTS.some((r) => r.id === m[1]) ? m[1] : 'r-rubinshteyna';
+        const tableLabel = m?.[2] ?? '7';
+        const existing = tables.find((t) => t.restaurantId === restaurantId && t.tableLabel === tableLabel && !t.paid);
+        if (existing) return wait(structuredCloneSafe(existing), 400);
+        const item = (dishId: string, qty: number, status: 'cooking' | 'served') => ({ id: `bi-${dishId}`, dishId, name: DISH_INDEX[dishId].name, price: DISH_INDEX[dishId].price, qty, status });
+        const t: TableSession = {
+          id: `ts-${Date.now().toString(36)}`,
+          restaurantId,
+          tableLabel,
+          waiter: 'Мария',
+          openedAt: Date.now() - 50 * 60000,
+          paid: false,
+          items: [item('pz-pepperoni', 1, 'served'), item('sal-caesar', 1, 'served'), item('rl-philadelphia', 1, 'served'), item('drk-lemonade-classic', 2, 'served'), item('des-cheesecake', 1, 'cooking')],
+        };
+        tables = [t, ...tables];
+        return wait(structuredCloneSafe(t), 600);
+      },
+      callWaiter: (id) => (tables.some((t) => t.id === id) ? wait({ etaMinutes: 2 }, 300) : fail(err('not_found', 'Стол не найден'))),
+      addItems: (id, items) => {
+        const t = tables.find((x) => x.id === id);
+        if (!t) return fail(err('not_found', 'Стол не найден'));
+        if (t.paid) return fail(err('conflict', 'Счёт уже закрыт'));
+        for (const it of items) {
+          const d = DISH_INDEX[it.dishId];
+          if (!d || it.qty <= 0) continue;
+          t.items.push({ id: `bi-${it.dishId}-${Date.now().toString(36)}${t.items.length}`, dishId: d.id, name: d.name, price: d.price, qty: it.qty, status: 'cooking' });
+        }
+        return wait(structuredCloneSafe(t), 500);
+      },
+      pay: (id, amount) => {
+        const t = tables.find((x) => x.id === id);
+        if (!t) return fail(err('not_found', 'Стол не найден'));
+        if (amount <= 0) return fail(err('validation', 'Нечего оплачивать'));
+        const total = t.items.reduce((sum, i) => sum + i.price * i.qty, 0);
+        const cashback = LOYALTY_LEVELS.find((l) => l.id === user.level)?.cashback ?? 3;
+        const pointsEarned = Math.round((Math.min(amount, total) * cashback) / 100);
+        user = { ...user, points: user.points + pointsEarned };
+        if (amount >= total) t.paid = true;
+        return wait({ session: structuredCloneSafe(t), pointsEarned }, 900);
+      },
+    },
+
+    gifts: {
+      send: (input) => {
+        if (input.amount < 500) return fail(err('validation', 'Сумма подарка от 500 ₽'));
+        if (input.recipientPhone.replace(/\D/g, '').length < 10) return fail(err('validation', 'Проверьте номер получателя'));
+        const id = `g-${Date.now().toString(36)}`;
+        const abc = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+        const code = `ЖАР-${Array.from({ length: 4 }, () => abc[Math.floor(rnd() * abc.length)]).join('')}`;
+        const g: Gift = { ...input, id, code, createdAt: Date.now() };
+        gifts.push(g);
+        return wait(g, 900);
+      },
+    },
+
     director: {
       triggerIncident: async (orderId, kind: IncidentKind) => {
         const o = find(orderId);
@@ -438,6 +500,7 @@ export function createApi(opts: MockOptions = {}): Api {
         user = demoUser(Date.now());
         orders = demoOrderHistory(Date.now());
         bookings = [];
+        tables = [];
         stopList.clear();
         speed = 1;
         timeScale = opts.timeScale ?? 20;
