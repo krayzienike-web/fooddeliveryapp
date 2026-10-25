@@ -1,5 +1,5 @@
 import { CARDS_SEPARATOR, buildInstructions, parseReply, visibleText, type AssistantContext, type DishSetCard } from '@/features/ai-assistant/model/protocol';
-import { composeSet, parseRequest, parseWhen, scriptedReply } from '@/features/ai-assistant/model/scripted';
+import { composeSet, parseRequest, parseWhen, scriptedReply, scriptedTurn, type ScriptedMemory } from '@/features/ai-assistant/model/scripted';
 import { usualOrder } from '@/features/ai-assistant/model/context';
 import { DISHES } from '@/mocks/seed/menu';
 import { RESTAURANTS } from '@/mocks/seed/restaurants';
@@ -81,6 +81,12 @@ describe('scripted brain — parsing', () => {
     ['хочу пиццу', { cats: ['pizza'] }],
   ])('%s', (msg, expected) => {
     expect(parseRequest(msg)).toMatchObject(expected);
+  });
+
+  test('Cyrillic word endings are recognised (JS \\b and \\w are ASCII-only)', () => {
+    expect(parseRequest('пп ужин').light).toBe(true);
+    expect(parseRequest('хочу фо бо').cats).toContain('soups');
+    expect(parseRequest('бюджетом 2000 на двоих')).toMatchObject({ budget: 2000, people: 2 });
   });
 
   test('"не острое" is not spicy', () => {
@@ -173,5 +179,62 @@ describe('usualOrder', () => {
 
   test('no repeats → undefined', () => {
     expect(usualOrder([o('a', [['bg-zhar', 1]])])).toBeUndefined();
+  });
+});
+
+describe('scripted brain — follow-ups keep the conversation', () => {
+  const GREETING = /я Шеф ИИ/;
+
+  test('«Дешевле» rebuilds the last set for the same group under a lower budget', () => {
+    const first = scriptedTurn('Ужин на четверых до 3000 ₽', ctx());
+    const firstSum = sum((first.reply.cards[0] as DishSetCard).items);
+    const next = scriptedTurn('Дешевле', ctx(), first.memory);
+    const card = next.reply.cards[0] as DishSetCard;
+    expect(card.title).toContain('4');
+    expect(sum(card.items)).toBeLessThan(firstSum);
+  });
+
+  test('«Поострее» keeps people and budget and switches to spicy', () => {
+    const first = scriptedTurn('Ужин на четверых до 3000 ₽', ctx());
+    const next = scriptedTurn('Поострее', ctx(), first.memory);
+    expect(next.memory.request).toMatchObject({ people: 4, budget: 3000, spicy: true });
+    expect(sum((next.reply.cards[0] as DishSetCard).items)).toBeLessThanOrEqual(3000);
+  });
+
+  test('«Добавить десерт» extends the last set instead of replacing it', () => {
+    const first = scriptedTurn('Ужин на четверых до 3000 ₽', ctx());
+    const before = (first.reply.cards[0] as DishSetCard).items;
+    const next = scriptedTurn('Добавить десерт', ctx(), first.memory);
+    const after = (next.reply.cards[0] as DishSetCard).items;
+    expect(after.slice(0, before.length)).toEqual(before);
+    expect(byId[after[after.length - 1].dishId].categoryId).toBe('desserts');
+  });
+
+  test('«Другой ресторан» keeps date, time and guests', () => {
+    const first = scriptedTurn('Забронируй столик на Невском на завтра в 19:00 на 4 человека', ctx());
+    const next = scriptedTurn('Другой ресторан', ctx(), first.memory);
+    expect(next.reply.cards[0]).toMatchObject({ type: 'booking', date: '2026-10-22', time: '19:00', guests: 4 });
+    expect((next.reply.cards[0] as { restaurantId: string }).restaurantId).not.toBe('r-nevsky');
+  });
+
+  test('every suggested chip leads somewhere meaningful (never back to the greeting)', () => {
+    const order = { id: 'o1', statusTitle: 'Курьер в пути', eta: '19:10–19:20', isPickup: false };
+    const usual = [{ dishId: 'pz-pepperoni', qty: 1 }, { dishId: 'drk-cola', qty: 2 }];
+    for (const c of [ctx({ order, usual }), ctx()]) {
+      const seen = new Set<string>();
+      const queue: Array<{ msg: string; mem: ScriptedMemory }> = ['Ужин на четверых до 3000 ₽', 'Столик на завтра в 19', 'Хочу банкет', 'Где мой заказ?', 'курьер опаздывает', 'привет', 'Повтори как обычно', 'сколько стоит доставка']
+        .map((msg) => ({ msg, mem: {} }));
+      while (queue.length) {
+        const { msg, mem } = queue.shift()!;
+        const turn = scriptedTurn(msg, c, mem);
+        if (msg !== 'привет') expect({ msg, text: turn.reply.text }).not.toEqual({ msg, text: expect.stringMatching(GREETING) });
+        for (const chip of turn.reply.chips) {
+          if (seen.has(chip)) continue;
+          seen.add(chip);
+          queue.push({ msg: chip, mem: turn.memory });
+        }
+      }
+      expect(seen.size).toBeGreaterThan(8);
+    }
   });
 });

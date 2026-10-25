@@ -4,7 +4,7 @@ import { api } from '@/services';
 import { AiError, getAiClient, type AiTurn } from '@/services/ai';
 import { snapshotContext } from './context';
 import { CARDS_SEPARATOR, buildInstructions, parseReply, visibleText, type AssistantCard } from './protocol';
-import { scriptedReply } from './scripted';
+import { scriptedTurn, type ScriptedMemory } from './scripted';
 
 export interface ChatMessage {
   id: string;
@@ -22,6 +22,8 @@ interface AssistantState {
   busy: boolean;
   /** Real Claude is reachable in this build (decided lazily on first send). */
   mode: 'unknown' | 'claude' | 'scripted';
+  /** Offline brain's memory of the last request/set/booking, for follow-ups. */
+  memory: ScriptedMemory;
   send: (text: string) => Promise<void>;
   stop: () => void;
   reset: () => void;
@@ -42,6 +44,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
     messages: [],
     busy: false,
     mode: 'unknown',
+    memory: {},
 
     async send(raw) {
       const text = raw.trim();
@@ -89,9 +92,9 @@ export const useAssistant = create<AssistantState>((set, get) => {
 
       // Offline brain: a short "typing" beat so it feels like a conversation, not a lookup.
       await new Promise((r) => setTimeout(r, 450));
-      const out = scriptedReply(text, ctx);
-      patch(reply.id, { ...out, status: 'done', source: 'scripted' });
-      set({ busy: false, mode: get().mode === 'unknown' ? 'scripted' : get().mode });
+      const turn = scriptedTurn(text, ctx, get().memory);
+      patch(reply.id, { ...turn.reply, status: 'done', source: 'scripted' });
+      set({ busy: false, memory: turn.memory, mode: get().mode === 'unknown' ? 'scripted' : get().mode });
     },
 
     stop() {
@@ -100,7 +103,7 @@ export const useAssistant = create<AssistantState>((set, get) => {
 
     reset() {
       ctl?.abort();
-      set({ messages: [], busy: false });
+      set({ messages: [], busy: false, memory: {} });
     },
   };
 });

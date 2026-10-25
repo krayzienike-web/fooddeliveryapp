@@ -38,7 +38,7 @@ const CAT_WORDS: Array<[RegExp, CategoryId]> = [
   [/сет/, 'sets'],
   [/бургер|чизбургер/, 'burgers'],
   [/вок|лапш/, 'wok'],
-  [/суп|борщ|рамен|том.?ям|фо\b/, 'soups'],
+  [/суп|борщ|рамен|том.?ям|фо(?![а-яё])/, 'soups'],
   [/салат|поке|боул/, 'salads'],
   [/паст|спагет|лазань/, 'pasta'],
   [/завтрак|сырник|блин|омлет|каш/, 'breakfast'],
@@ -52,13 +52,13 @@ const CAT_WORDS: Array<[RegExp, CategoryId]> = [
 export function parseRequest(message: string): Request {
   const t = norm(message);
   let people: number | undefined;
-  const m = t.match(/(\d{1,2})\s*(человек|чел|гост|персон|друз|взросл)/) ?? t.match(/нас\s*(\d{1,2})/) ?? t.match(/на\s*(\d{1,2})\b(?!\s*(:|час|₽|р\b|руб|к\b|тыс|000))/);
+  const m = t.match(/(\d{1,2})\s*(человек|чел|гост|персон|друз|взросл)/) ?? t.match(/нас\s*(\d{1,2})/) ?? t.match(/на\s*(\d{1,2})\b(?!\s*(:|час|₽|р(?![а-яё])|руб|к(?![а-яё])|тыс|000))/);
   if (m) people = Number(m[1]);
   else for (const [re, n] of WORD_PEOPLE) if (re.test(t)) people = n;
   if (!people && /компани|друз|гости|вечеринк|тусовк/.test(t)) people = 4;
 
   let budget: number | undefined;
-  const b = t.match(/(?:до|за|бюджет\w*|в пределах|уложиться в|не дороже)\s*(\d[\d\s]*(?:[.,]\d)?)\s*(к|тыс\w*|₽|р\b|руб\w*)?/);
+  const b = t.match(/(?:до|за|бюджет[а-яa-z]*|в пределах|уложиться в|не дороже)\s*(\d[\d\s]*(?:[.,]\d)?)\s*(к|тыс[а-яa-z]*|₽|р(?![а-яё])|руб[а-яa-z]*)?/);
   if (b) {
     const n = Number(b[1].replace(/\s/g, '').replace(',', '.'));
     budget = b[2] && /^(к|тыс)/.test(b[2]) ? n * 1000 : n;
@@ -75,7 +75,7 @@ export function parseRequest(message: string): Request {
     veg: /вегет|без мяса|веган|постн/.test(t),
     noSpicy: /не\s*остр|без\s*остр|неостр/.test(t),
     spicy: /остр|пикант|жгуч/.test(t) && !/не\s*остр|без\s*остр|неостр/.test(t),
-    light: /пп\b|легк|диет|калор|полезн|правильн/.test(t),
+    light: /пп(?![а-яё])|легк|диет|калор|полезн|правильн/.test(t),
     glutenFree: /без\s*глютен/.test(t),
     kids: /дет|ребен|малыш/.test(t),
   };
@@ -186,7 +186,7 @@ export function parseWhen(message: string, now: Date): { date: string; time?: st
       }
     }
   }
-  const tm = t.match(/(?:в|к|на)\s*(\d{1,2})(?:[:.](\d{2}))?\s*(?:час|ч\b|утра|вечера|:|$|\s)/);
+  const tm = t.match(/(?:в|к|на)\s*(\d{1,2})(?:[:.](\d{2}))?\s*(?:час|ч(?![а-яё])|утра|вечера|:|$|\s)/);
   let time: string | undefined;
   if (tm) {
     let h = Number(tm[1]);
@@ -214,103 +214,228 @@ function personalPicks(ctx: AssistantContext): AssistantCard {
   return { type: 'dishes', title: 'Под ваш вкус', items, note: 'Подобрал по вашим лайкам и заказам' };
 }
 
-export function scriptedReply(message: string, ctx: AssistantContext): AssistantReply {
+/** What the offline brain remembers between turns, so follow-ups like «Дешевле» or «Другой ресторан» work. */
+export interface ScriptedMemory {
+  request?: Request;
+  set?: Array<{ dishId: string; qty: number }>;
+  booking?: { restaurantId: string; date: string; time?: string; guests: number; label: string };
+}
+
+export interface ScriptedTurn {
+  reply: AssistantReply;
+  memory: ScriptedMemory;
+}
+
+const hasSignal = (r: Request) => !!(r.people || r.budget || r.cats.length || r.veg || r.spicy || r.noSpicy || r.light || r.glutenFree || r.kids);
+
+/** A short follow-up refines the previous request instead of starting over. */
+function mergeRequest(prev: Request | undefined, next: Request, message: string): Request {
+  if (!prev || message.length > 60) return next;
+  return {
+    people: next.people ?? prev.people,
+    budget: next.budget ?? prev.budget,
+    cats: next.cats.length ? next.cats : prev.cats,
+    veg: next.veg || prev.veg,
+    spicy: next.noSpicy ? false : next.spicy || prev.spicy,
+    noSpicy: next.spicy ? false : next.noSpicy || prev.noSpicy,
+    light: next.light || prev.light,
+    glutenFree: next.glutenFree || prev.glutenFree,
+    kids: next.kids || prev.kids,
+  };
+}
+
+function setReply(ctx: AssistantContext, r: Request, intro?: string): ScriptedTurn {
+  const items = composeSet(ctx.ranked, r, ctx.stopList);
+  if (!items.length) {
+    return {
+      reply: { text: r.budget ? `В ${rub(r.budget)} с такими условиями не уложиться. Поднимем бюджет или уберём ограничения?` : 'Не нашёл подходящих блюд — попробуйте сформулировать иначе.', cards: [], chips: ['Без ограничений', 'Что популярно?'] },
+      memory: { request: r },
+    };
+  }
+  const sum = total(items, ctx.dishes);
+  const who = r.people && r.people > 1 ? ` на ${peopleWord(r.people)}` : '';
+  const diet = [r.veg && 'без мяса', r.spicy && 'поострее', r.noSpicy && 'без остроты', r.light && 'полегче', r.glutenFree && 'без глютена', r.kids && 'для детей'].filter(Boolean).join(', ');
+  const fitNote = r.budget ? (sum <= r.budget ? `, укладываемся в ${rub(r.budget)}` : '') : '';
+  const title = r.people && r.people > 1 ? `Набор${who}` : r.cats.length === 1 ? 'Подборка для вас' : 'Ужин под ваш вкус';
+  return {
+    reply: {
+      text: `${intro ?? 'Собрал'}${who}${diet ? ` (${diet})` : ''}: ${items.length} ${plural(items.length, 'позиция', 'позиции', 'позиций')} на ${rub(sum)}${fitNote}. Можно поменять что угодно — просто скажите.`,
+      cards: [{ type: 'dishes', title, items, note: sum < ctx.freeDeliveryFrom ? `До бесплатной доставки ${rub(ctx.freeDeliveryFrom - sum)}` : 'Доставка бесплатная' }],
+      chips: [r.spicy ? 'Без остроты' : 'Поострее', 'Дешевле', r.people && r.people > 1 ? 'Добавить десерт' : 'На компанию из 4'],
+    },
+    memory: { request: r, set: items },
+  };
+}
+
+function bookingReply(ctx: AssistantContext, b: NonNullable<ScriptedMemory['booking']>, rest: Restaurant, lead?: string): ScriptedTurn {
+  return {
+    reply: {
+      text: `${lead ? `${lead} ` : ''}«${rest.name}» на ${peopleWord(b.guests)}, ${b.label}${b.time ? ` в ${b.time}` : ''}. Выберите стол на схеме зала — можно сразу заказать блюда к приходу.`,
+      cards: [{ type: 'booking', restaurantId: rest.id, date: b.date, time: b.time, guests: b.guests }],
+      chips: ['Есть столик у окна?', 'Другой ресторан'],
+    },
+    memory: { booking: { ...b, restaurantId: rest.id } },
+  };
+}
+
+function pickCard(ctx: AssistantContext, title: string, filter: (d: Dish) => boolean, sort?: (a: Dish, b: Dish) => number): AssistantCard | null {
+  let list = ctx.ranked.filter((d) => !ctx.stopList.includes(d.id) && filter(d));
+  if (sort) list = [...list].sort(sort);
+  const items = list.slice(0, 4).map((d) => ({ dishId: d.id, qty: 1 }));
+  return items.length ? { type: 'dishes', title, items } : null;
+}
+
+export function scriptedTurn(message: string, ctx: AssistantContext, mem: ScriptedMemory = {}): ScriptedTurn {
   const t = norm(message);
-  const r = parseRequest(message);
+  const parsed = parseRequest(message);
+  const keep = (reply: AssistantReply): ScriptedTurn => ({ reply, memory: mem });
 
   // 1. A problem with the order comes first.
-  if (/опазд|опозд|долго|холодн|не привез|не пришел|забыл|не хватает|перепут|не то|испорч|жалоб|вернуть|возврат|проблем/.test(t)) {
+  if (/опазд|опозд|долго|холодн|не привез|не пришел|забыл|не хватает|перепут|не то(?![а-яё])|не так|испорч|жалоб|вернуть|возврат|проблем/.test(t)) {
     if (!ctx.order) {
-      return { text: 'Сейчас у вас нет активного заказа. Если вопрос по прошлому, откройте его в истории — помогу там.', cards: [], chips: ['Мои заказы', 'Что заказать?'] };
+      return keep({ text: 'Сейчас у вас нет активного заказа. Если вопрос по прошлому, откройте его в Профиле → «Мои заказы» — помогу там.', cards: [], chips: ['Что заказать?'] });
     }
-    const topic = /опазд|опозд|долго/.test(t) ? 'late' : /холодн/.test(t) ? 'cold' : /забыл|не хватает|не привез/.test(t) ? 'missing' : /перепут|не то/.test(t) ? 'wrong' : 'other';
-    return { text: 'Сочувствую, разберёмся прямо сейчас. Выберите, что случилось, — компенсацию начислим сразу, без ожидания оператора.', cards: [{ type: 'support', topic }], chips: ['Где курьер?'] };
+    const topic = /опазд|опозд|долго/.test(t) ? 'late' : /холодн/.test(t) ? 'cold' : /забыл|не хватает|не привез/.test(t) ? 'missing' : /перепут|не то(?![а-яё])/.test(t) ? 'wrong' : 'other';
+    return keep({ text: 'Сочувствую, разберёмся прямо сейчас. Выберите, что случилось, — компенсацию начислим сразу, без ожидания оператора.', cards: [{ type: 'support', topic }], chips: ['Где курьер?'] });
   }
 
   // 2. Order status.
   if (/где (мой )?заказ|где курьер|статус|когда (привез|будет|доставят)|сколько ждать|скоро/.test(t)) {
     if (ctx.order) {
-      return { text: `${ctx.order.statusTitle}. ${ctx.order.isPickup ? 'Будет готов' : 'Привезём'} ${ctx.order.eta}.`, cards: [{ type: 'order' }], chips: ['Что-то не так с заказом', 'Добавить десерт'] };
+      return keep({ text: `${ctx.order.statusTitle}. ${ctx.order.isPickup ? 'Будет готов' : 'Привезём'} ${ctx.order.eta}.`, cards: [{ type: 'order' }], chips: ['Что-то не так с заказом', 'Добавить десерт'] });
     }
     const usual = ctx.usual?.length ? [{ type: 'dishes', title: 'Как обычно', items: ctx.usual } as AssistantCard] : [];
-    return { text: 'Активных заказов нет. Повторить ваш обычный?', cards: usual, chips: ['Что нового в меню?'] };
+    return { reply: { text: usual.length ? 'Активных заказов нет. Повторить ваш обычный?' : 'Активных заказов нет.', cards: usual, chips: ['Что нового в меню?'] }, memory: usual.length ? { set: ctx.usual } : mem };
+  }
+  if (/мои заказы|истори[а-яa-z]* заказ/.test(t)) {
+    return keep({ text: 'Все заказы — в Профиле → «Мои заказы». Любой можно повторить одним касанием.', cards: [], chips: ['Повтори как обычно'] });
   }
 
   // 3. Banquet.
-  if (/банкет|корпоратив|день рождени|свадьб|юбиле|выпускн|праздн/.test(t) && (r.people ?? 0) >= 8 || /банкет|корпоратив/.test(t)) {
-    const guests = r.people && r.people >= 6 ? r.people : 20;
+  if ((/день рождени|свадьб|юбиле|выпускн|праздн/.test(t) && (parsed.people ?? 0) >= 8) || /банкет|корпоратив/.test(t)) {
+    const guests = parsed.people && parsed.people >= 6 ? parsed.people : 20;
     const hall = matchRestaurant(message, ctx.restaurants.filter((x) => x.hasBanquetHall)) ?? ctx.restaurants.find((x) => x.hasBanquetHall);
-    const per = r.budget ? Math.round(r.budget / guests) : undefined;
-    return {
+    const per = parsed.budget ? Math.round(parsed.budget / guests) : undefined;
+    return keep({
       text: `Банкет на ${peopleWord(guests)} проведём${hall ? ` в «${hall.name}»` : ''}. Соберу меню под бюджет и пришлю менеджеру — он перезвонит за 15 минут.`,
       cards: [{ type: 'banquet', guests, restaurantId: hall?.id, budgetPerGuest: per }],
-      chips: ['А что по меню?', 'Есть детское меню?'],
-    };
+      chips: ['Есть детское меню?', 'Забронировать столик'],
+    });
   }
 
-  // 4. Table booking.
+  // 4. Table booking and its follow-ups.
+  if (mem.booking && /другой ресторан|в другом|не тот ресторан|где-нибудь ещ/.test(t)) {
+    const others = [...ctx.restaurants].filter((x) => x.id !== mem.booking!.restaurantId).sort((a, b) => a.load - b.load);
+    const rest = matchRestaurant(message, others) ?? others[0];
+    return bookingReply(ctx, mem.booking, rest, 'Тогда так:');
+  }
+  if (mem.booking && /окн|тих|диван|веранд|бар/.test(t)) {
+    const rest = ctx.restaurants.find((x) => x.id === mem.booking!.restaurantId)!;
+    const wish = /окн/.test(t) ? 'у окна' : /тих/.test(t) ? 'в тихой зоне' : /диван/.test(t) ? 'с диванами' : /веранд/.test(t) ? 'на веранде' : 'у бара';
+    return { ...bookingReply(ctx, mem.booking, rest), reply: { ...bookingReply(ctx, mem.booking, rest).reply, text: `Столы ${wish} в «${rest.name}» отмечены на схеме — выбирайте любой свободный. Если все заняты, предложу ближайшее время.` } };
+  }
   if (/столик|стол на|забронир|бронь|брониров|посидеть|сходить в ресторан/.test(t)) {
-    const guests = r.people ?? 2;
     const when = parseWhen(message, ctx.now);
     const rest = matchRestaurant(message, ctx.restaurants) ?? [...ctx.restaurants].sort((a, b) => a.load - b.load)[0];
-    return {
-      text: `«${rest.name}» на ${peopleWord(guests)}, ${when.label}${when.time ? ` в ${when.time}` : ''}. Выберите стол на схеме зала — можно сразу заказать блюда к приходу.`,
-      cards: [{ type: 'booking', restaurantId: rest.id, date: when.date, time: when.time, guests }],
-      chips: ['Есть столик у окна?', 'Другой ресторан'],
-    };
+    return bookingReply(ctx, { restaurantId: rest.id, date: when.date, time: when.time, label: when.label, guests: parsed.people ?? 2 }, rest);
   }
 
   // 5. Repeat the usual.
   if (/повтор|как обычно|как в прошлый|как всегда|то же самое/.test(t)) {
-    if (ctx.usual?.length) {
-      return { text: `Ваш классический набор — ${rub(total(ctx.usual, ctx.dishes))}. Добавить всё в корзину одним касанием?`, cards: [{ type: 'dishes', title: 'Как обычно', items: ctx.usual }], chips: ['Добавить десерт', 'Что-то новое'] };
+    if (!ctx.usual?.length) {
+      const card = pickCard(ctx, 'Хиты сегодня', (d) => d.categoryId !== 'drinks', (a, b) => b.popularity - a.popularity);
+      return {
+        reply: { text: 'Постоянного заказа у вас пока нет — запомню, когда закажете одно и то же пару раз. А пока хиты дня:', cards: card ? [card] : [], chips: ['Что-то новое', 'Ужин на 4 до 3000 ₽'] },
+        memory: card ? { set: (card as { items: Array<{ dishId: string; qty: number }> }).items } : mem,
+      };
     }
+    return {
+      reply: { text: `Ваш классический набор — ${rub(total(ctx.usual, ctx.dishes))}. Добавить всё в корзину одним касанием?`, cards: [{ type: 'dishes', title: 'Как обычно', items: ctx.usual }], chips: ['Добавить десерт', 'Что-то новое'] },
+      memory: { set: ctx.usual },
+    };
   }
 
-  // 6. Info.
-  if (/доставк\w* (стоит|сколько)|сколько (стоит )?доставк|бесплатн\w* доставк|минимальн/.test(t)) {
-    const need = Math.max(0, ctx.freeDeliveryFrom - ctx.cartTotal);
+  // 6. Edits of the last proposed set.
+  const addCat: CategoryId | undefined = /добав[а-яa-z]* десерт|что-нибудь сладк|и десерт/.test(t) ? 'desserts' : /добав[а-яa-z]* (напит|попить|лимонад)|и попить/.test(t) ? 'drinks' : /добав[а-яa-z]* закуск/.test(t) ? 'snacks' : undefined;
+  if (addCat) {
+    const base = mem.set ?? [];
+    const pick = ctx.ranked.find((d) => d.categoryId === addCat && !ctx.stopList.includes(d.id) && !base.some((b) => b.dishId === d.id) && fits(d, mem.request ?? parseRequest(''), ctx.stopList));
+    if (!pick) return keep({ text: 'Подходящего не нашлось — загляните в меню, там всё по категориям.', cards: [], chips: [] });
+    const qty = addCat === 'drinks' ? Math.max(1, mem.request?.people ?? 1) : Math.max(1, Math.floor((mem.request?.people ?? 1) / 3));
+    const items = [...base, { dishId: pick.id, qty }];
+    const what = addCat === 'desserts' ? 'десерт' : addCat === 'drinks' ? 'напитки' : 'закуску';
     return {
+      reply: {
+        text: base.length ? `Добавил ${what}: «${pick.name}». Теперь набор на ${rub(total(items, ctx.dishes))}.` : `Советую «${pick.name}» — ${pick.tagline.toLowerCase()}`,
+        cards: [{ type: 'dishes', title: base.length ? 'Обновлённый набор' : 'К заказу', items }],
+        chips: base.length ? ['Дешевле', 'Добавить напитки'] : ['Что популярно?'],
+      },
+      memory: { ...mem, set: items },
+    };
+  }
+  if (/дешевл|подешевл|бюджетн|экономн|подороже|дороже|пошикарн/.test(t)) {
+    const prev = mem.set ? total(mem.set, ctx.dishes) : undefined;
+    const up = /подороже|дороже|пошикарн/.test(t);
+    if (!prev) return setReply(ctx, { ...parseRequest(''), budget: up ? undefined : 1200 }, up ? 'Подобрал' : 'Собрал недорого');
+    const budget = Math.round((prev * (up ? 1.4 : 0.8)) / 50) * 50;
+    const r = mergeRequest(mem.request, { ...parseRequest(''), budget }, message);
+    return setReply(ctx, { ...r, budget }, up ? `Добавил размаха — до ${rub(budget)}` : `Сократил до ${rub(budget)}`);
+  }
+  if (/без ограничен/.test(t)) return setReply(ctx, { ...parseRequest(''), people: mem.request?.people });
+
+  // 7. Info and discovery.
+  if (/доставк[а-яa-z]* (стоит|сколько)|сколько (стоит )?доставк|бесплатн[а-яa-z]* доставк|минимальн/.test(t)) {
+    const need = Math.max(0, ctx.freeDeliveryFrom - ctx.cartTotal);
+    return keep({
       text: `Доставка ${rub(ctx.deliveryFee)}, бесплатно от ${rub(ctx.freeDeliveryFrom)}.${ctx.cartTotal > 0 ? (need > 0 ? ` До бесплатной вам осталось ${rub(need)}.` : ' Ваша корзина уже проходит.') : ''}`,
       cards: [],
       chips: need > 0 && ctx.cartTotal > 0 ? ['Чем добить корзину?'] : ['Что заказать?'],
-    };
+    });
   }
   if (/добить|догнать до бесплат|чем дополнить/.test(t)) {
     const need = Math.max(1, ctx.freeDeliveryFrom - ctx.cartTotal);
     const add = ctx.ranked.filter((d) => !ctx.stopList.includes(d.id) && ['snacks', 'desserts', 'drinks'].includes(d.categoryId) && !ctx.cart.some((l) => l.dishId === d.id));
     const pick = add.find((d) => d.price >= need && d.price <= need + 250) ?? add[0];
-    return { text: `Не хватает ${rub(need)} до бесплатной доставки. ${pick ? `«${pick.name}» закроет разницу.` : ''}`, cards: pick ? [{ type: 'dishes', title: 'До бесплатной доставки', items: [{ dishId: pick.id, qty: 1 }] }] : [], chips: [] };
+    return keep({ text: `Не хватает ${rub(need)} до бесплатной доставки. ${pick ? `«${pick.name}» закроет разницу.` : ''}`.trim(), cards: pick ? [{ type: 'dishes', title: 'До бесплатной доставки', items: [{ dishId: pick.id, qty: 1 }] }] : [], chips: [] });
   }
   if (/работает|часы работы|во сколько закрыва|адрес|где (вы|находит)|ближайш/.test(t)) {
     const list = [...ctx.restaurants].slice(0, 3).map((x) => `${x.name} — ${x.address}, ${x.hours}`).join('; ');
-    return { text: `${list}. Всего у нас ${ctx.restaurants.length} ресторанов в Петербурге.`, cards: [], chips: ['Забронировать столик'] };
+    return keep({ text: `${list}. Всего у нас ${ctx.restaurants.length} ресторанов в Петербурге.`, cards: [], chips: ['Забронировать столик'] });
+  }
+  if (/нов(ое|ого|инк|ен)|что-то новое|не пробовал/.test(t)) {
+    const card = pickCard(ctx, 'Новинки', (d) => d.tags.includes('new'));
+    return { reply: { text: 'Свежее в меню — шеф добавил на этой неделе:', cards: card ? [card] : [], chips: ['Что популярно?', 'Что-то острое'] }, memory: card ? { set: (card as { items: Array<{ dishId: string; qty: number }> }).items } : mem };
+  }
+  if (/популяр|хит|чаще всего|что берут/.test(t)) {
+    const card = pickCard(ctx, 'Хиты сегодня', (d) => d.categoryId !== 'drinks', (a, b) => b.popularity - a.popularity);
+    return { reply: { text: 'Это сегодня заказывают чаще всего:', cards: card ? [card] : [], chips: ['Что-то новое', 'Ужин на 4 до 3000 ₽'] }, memory: card ? { set: (card as { items: Array<{ dishId: string; qty: number }> }).items } : mem };
+  }
+  if (/детск|для ребен|для дет/.test(t) && !parsed.people) {
+    const card = pickCard(ctx, 'Детское меню', (d) => d.tags.includes('kids'));
+    return { reply: { text: card ? 'Есть детские порции — без острого, поменьше и с весёлой подачей:' : 'Отдельного детского меню нет, но многие блюда можно заказать без специй.', cards: card ? [card] : [], chips: ['Добавить десерт'] }, memory: card ? { set: (card as { items: Array<{ dishId: string; qty: number }> }).items } : mem };
   }
 
-  // 7. Compose a set for a group / budget / named categories / mood.
-  const moody = /хочу|подбери|посоветуй|собери|что (взять|заказать|поесть)|голод|перекус|ужин|обед|завтрак|вечер|фильм|сериал|остр|сытн|легк/.test(t);
-  if (r.people || r.budget || r.cats.length || moody || r.veg || r.spicy || r.light) {
-    const items = composeSet(ctx.ranked, r, ctx.stopList);
-    if (!items.length) {
-      return { text: r.budget ? `В ${rub(r.budget)} с такими условиями не уложиться. Поднимем бюджет или уберём ограничения?` : 'Не нашёл подходящих блюд — попробуйте сформулировать иначе.', cards: [], chips: ['Без ограничений', 'Что популярно?'] };
-    }
-    const sum = total(items, ctx.dishes);
-    const who = r.people && r.people > 1 ? ` на ${peopleWord(r.people)}` : '';
-    const diet = [r.veg && 'без мяса', r.spicy && 'поострее', r.noSpicy && 'без остроты', r.light && 'полегче', r.glutenFree && 'без глютена'].filter(Boolean).join(', ');
-    const fitNote = r.budget ? (sum <= r.budget ? `, укладываемся в ${rub(r.budget)}` : '') : '';
-    const title = r.people && r.people > 1 ? `Набор${who}` : r.cats.length === 1 ? 'Подборка для вас' : 'Ужин под ваш вкус';
-    return {
-      text: `Собрал${who}${diet ? ` (${diet})` : ''}: ${items.length} ${plural(items.length, 'позиция', 'позиции', 'позиций')} на ${rub(sum)}${fitNote}. Можно поменять что угодно — просто скажите.`,
-      cards: [{ type: 'dishes', title, items, note: sum < ctx.freeDeliveryFrom ? `До бесплатной доставки ${rub(ctx.freeDeliveryFrom - sum)}` : 'Доставка бесплатная' }],
-      chips: [r.spicy ? 'Без остроты' : 'Поострее', r.budget ? 'Дешевле' : 'Уложиться в 2000', r.people ? 'Добавить десерт' : 'На компанию из 4'],
-    };
+  // 8. Compose a set for a group / budget / named categories / mood — refining the last one on short follow-ups.
+  const moody = /хочу|подбери|посоветуй|собери|что (взять|заказать|поесть)|голод|перекус|ужин|обед|завтрак|вечер|фильм|сериал|остр|сытн|легк|меню/.test(t);
+  if (hasSignal(parsed) || moody) {
+    const r = hasSignal(parsed) ? mergeRequest(mem.request, parsed, message) : parsed;
+    return setReply(ctx, r, mem.request && r !== parsed ? 'Пересобрал' : undefined);
   }
 
-  // 8. Greeting / anything else.
+  // 9. Greeting / anything else.
   const hello = ctx.user ? `${ctx.user.name}, ` : '';
+  const picks = personalPicks(ctx);
   return {
-    text: `${hello}я Шеф ИИ. Соберу заказ под компанию и бюджет, забронирую стол или помогу с текущим заказом. Вот что вам обычно нравится:`,
-    cards: [personalPicks(ctx)],
-    chips: ['Ужин на 4 до 3000 ₽', 'Столик на завтра в 19', 'Что-то острое'],
+    reply: {
+      text: `${hello}я Шеф ИИ. Соберу заказ под компанию и бюджет, забронирую стол или помогу с текущим заказом. Вот что вам обычно нравится:`,
+      cards: [picks],
+      chips: ['Ужин на 4 до 3000 ₽', 'Столик на завтра в 19', 'Что-то острое'],
+    },
+    memory: { set: (picks as { items: Array<{ dishId: string; qty: number }> }).items },
   };
+}
+
+/** Stateless convenience: one turn without memory. */
+export function scriptedReply(message: string, ctx: AssistantContext): AssistantReply {
+  return scriptedTurn(message, ctx).reply;
 }
