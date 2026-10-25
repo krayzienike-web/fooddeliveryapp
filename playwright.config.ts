@@ -41,7 +41,12 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'off',
   },
-  projects: [{ name: 'pixel7-chromium' }],
+  projects: [
+    { name: 'pixel7-chromium', testIgnore: /c11-ar\.spec\.ts/ },
+    // AR renders WebGL in software (SwiftShader) in headless Chromium and saturates every core: two GL pages in
+    // parallel make each frame take seconds. Run the AR spec alone, after the main suite (serial inside the file).
+    { name: 'pixel7-ar', testMatch: /c11-ar\.spec\.ts/, dependencies: ['pixel7-chromium'], fullyParallel: false },
+  ],
   webServer: externalBaseUrl
     ? undefined
     : {

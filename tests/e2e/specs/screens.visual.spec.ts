@@ -2,7 +2,7 @@
  * UI baseline per screen (visual regression + UX heuristics) in a deterministic state:
  * seed 1, clock started at Friday 23 Oct 2026 19:30 (Moscow), reducedMotion, persist off.
  * Baselines: tests/e2e/__screenshots__/screens.visual.spec.ts/<name>.png — re-baseline with `npm run e2e:update`.
- * Masked: `*-live` (ETA, kitchen, courier map), <video>, maps and the floor plan (see MASK).
+ * Masked: `*-live` (ETA, kitchen, courier map), <video>, maps, the AR GL canvas (see MASK).
  *
  * «Known UX debts»: for every screen with entries in support/known-issues.ts there is a `test.fail` that runs the
  * heuristics WITHOUT the ignores. When the app fixes them all, it "unexpectedly passes" → delete the entries.
@@ -10,7 +10,7 @@
 import { test, expect, TID, expectUx, expectScreen, collectUxViolations, KNOWN_UX, FRIDAY_EVENING, SUNDAY_NOON, waitForStill, type App } from '../support/fixtures';
 
 /** Content that legitimately changes between runs (on top of *-live and <video>). */
-const MASK = ['[data-testid="order-status-title"]', '[data-testid="restaurants-map"]', '[data-testid="restaurant-map"]', '[data-testid="qr-viewfinder"]', '[data-testid="address-screen"] svg'];
+const MASK = ['[data-testid="ar-view"]', '[data-testid="order-status-title"]', '[data-testid="restaurants-map"]', '[data-testid="restaurant-map"]', '[data-testid="qr-viewfinder"]', '[data-testid="address-screen"] svg'];
 
 const loggedIn = { loggedIn: true };
 const openRestaurant = async (a: App) => { await a.goTab('restaurants'); await a.tap(TID.restaurants.item('r-nevsky')); };
@@ -49,6 +49,7 @@ const SCREENS: ScreenCase[] = [
   { name: 'promos', ux: 'promos', ready: TID.promos.item('p-friday'), flags: loggedIn, go: async (a) => { await a.goTab('profile'); await a.tap(TID.profile.promos); } },
   { name: 'support', ux: 'support', ready: TID.support.human, flags: loggedIn, go: async (a) => { await a.goTab('profile'); await a.tap(TID.profile.help); } },
   { name: 'settings', ux: 'settings', ready: TID.settings.delete, flags: loggedIn, go: async (a) => { await a.goTab('profile'); await a.tap(TID.profile.settings); } },
+  // ar: baseline lives in c11-ar.spec.ts (isolated project — software WebGL is too slow next to parallel tests).
   { name: 'director', ux: 'director', ready: TID.director.reset, go: (a) => a.openDirector() },
 ];
 

@@ -7,7 +7,8 @@
  *   speed           mock backend time multiplier (order lifecycle ≈ 135 s / speed)
  *   skipOnboarding  start on Home (taste profile not onboarded → «Самое популярное», no «почему» chips)
  *   loggedIn        start with a session for the demo user (+7 921 555-12-34, order history with Friday rituals)
- *   reducedMotion   reserved: the app does not read it yet; motion is calmed by `reducedMotion: 'reduce'` in the config
+ *   reducedMotion   AR: the 3D view does not auto-rotate and renders only on change (software GL stays fast);
+ *                   other motion is calmed by `reducedMotion: 'reduce'` in the Playwright config
  *   persist         false → do not read/write AsyncStorage (clean state per test)
  * Any non-empty flag object also switches «Шеф ИИ» to the deterministic offline brain (src/services/ai/index.ts).
  *
@@ -129,9 +130,16 @@ export class App {
   get profile() { return new Screen(this.page, 'profile'); }
   get qrMenu() { return new Screen(this.page, 'qr-menu'); }
   get gift() { return new Screen(this.page, 'gift'); }
+  get ar() { return new Screen(this.page, 'ar'); }
 
   /** Personal feed on Home («Для вас»). */
   get feed(): Locator { return this.tid(TID.home.forYouList); }
+
+  /** Jumps straight to a route via the e2e-only `window.__ZHAR_NAV__` navigation ref (src/app/navigation/ref.ts). */
+  async navigate(route: string, params?: Record<string, unknown>): Promise<void> {
+    await this.page.waitForFunction(() => (window as unknown as { __ZHAR_NAV__?: { isReady(): boolean } }).__ZHAR_NAV__?.isReady());
+    await this.page.evaluate(([r, p]) => (window as unknown as { __ZHAR_NAV__: { navigate(r: string, p?: unknown): void } }).__ZHAR_NAV__.navigate(r as string, p), [route, params] as const);
+  }
 
   // ---- reusable flows (keep specs short; change here when a flow changes) ---------------------
   async goTab(tab: keyof typeof TID.global.tab): Promise<void> {

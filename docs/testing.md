@@ -2,7 +2,7 @@
 
 Три слоя: **domain/unit** («бэк», Jest) → **contract** (mock-бэкенд через `Api` + реестр testID, Jest) → **E2E/UX/UI** (Playwright по веб-экспорту, Pixel 7 412×915, ru-RU, Europe/Moscow, тёмная тема, reduced motion).
 
-Сейчас: **Jest 609** (unit 287 в `tests/unit` и `src/**/__tests__`, contract 322, из них 289 — сверка реестра testID с `src`); **Playwright 122**: 65 сценарных тестов, 32 эталонных экрана (UX + скриншот), 13 «известных UX-долгов», 12 smoke/самотестов UX-чекера. Явно помечены: 5 `test.fail` (баги), 2 `test.fixme`, 1 `test.failing` в Jest.
+Сейчас: **Jest 626** (unit 304 в `tests/unit` и `src/**/__tests__`, contract 322, из них 296 — сверка реестра testID с `src`); **Playwright 124**: 67 сценарных тестов (в одном из них снимается эталон AR), 32 эталонных экрана (UX + скриншот), 13 «известных UX-долгов», 12 smoke/самотестов UX-чекера. Явно помечены: 5 `test.fail` (баги), 2 `test.fixme`, 1 `test.failing` в Jest. Полный прогон идёт около 6 минут, из них около 2,5 минуты занимает AR.
 
 ## Запуск
 
@@ -20,6 +20,8 @@
 **Браузер.** Локально Chromium уже лежит в `/opt/pw-browsers` (`PLAYWRIGHT_BROWSERS_PATH`). **Никогда** не запускайте `playwright install` локально. Версия `@playwright/test` (1.63.0) зафиксирована под этот браузер; обновляйте их вместе. В CI браузер ставится командой `npx playwright install --with-deps chromium`.
 
 Если на :4173 уже работает сервер, Playwright использует его (`reuseExistingServer`), и `E2E_REBUILD` не сработает: сначала остановите старый сервер.
+
+**Проекты Playwright.** `pixel7-chromium` — всё, кроме AR. `pixel7-ar` — только `c11-ar.spec.ts`. Он запускается после основного проекта (`dependencies`), тесты внутри идут по одному. Причина: WebGL в headless Chromium программный (SwiftShader) и занимает все ядра, поэтому две GL-страницы параллельно рендерят кадр секундами. Если основной проект упал, AR пропускается. Отдельный запуск: `npx playwright test --project=pixel7-ar --no-deps`.
 
 Отчёты и трейсы лежат в `tests/e2e/.artifacts/` (в git не попадают). Открыть отчёт: `npx playwright show-report tests/e2e/.artifacts/report`.
 
@@ -39,7 +41,7 @@ tests/
                           format (₽, телефон, даты), cart-store (zustand), director/defaultOptions/achievements
   contract/               Api мока (orders, booking, catalog-auth, loyalty-table) + testids.contract (реестр ↔ src)
   e2e/
-    support/testids.ts    реестр testID (единый источник правды; блок `planned` — только для заглушек)
+    support/testids.ts    реестр testID (единый источник правды; блок `planned` — для экранов, которых ещё нет)
     support/app.ts        App-драйвер, page objects (Screen), флоу: addFromFeed, openCart, loginWithSms, checkoutAndPay,
                           placeOrder, slideToPay, swipe/touchTap (жесты), openDirector, triggerIncident, expectToast…
     support/known-issues.ts  известные UX-долги приложения (исключаются из expectUx, у каждого есть test.fail)
@@ -47,7 +49,7 @@ tests/
     support/visual.ts     expectScreen, settle, waitForStill
     support/fixtures.ts   `test`/`expect` с фикстурой `app`, expectUx(page, screen), FRIDAY_EVENING, SUNDAY_NOON
     specs/                j1…j9 (Job Stories), a1 каталог/корзина, b1 Шеф ИИ, b2 Reels, c13 оценка+поддержка,
-                          c17 QR-стол, c18 подарок, p1 профиль/настройки, screens.visual, smoke, ux-checker
+                          c11 AR, c17 QR-стол, c18 подарок, p1 профиль/настройки, screens.visual, smoke, ux-checker
     __screenshots__/      эталонные скриншоты (коммитятся)
 ```
 
@@ -72,11 +74,11 @@ tests/
 | C18 Подарок: дизайн, сумма, валидация имени и телефона, отправка, код, вход | `c18-gift` | ✅ 2 |
 | Профиль и настройки: заказы → повтор, брони, избранное, тема, диета, персонализация, удаление в 2 шага, выход | `p1-profile-settings` | ✅ 6 |
 | Эталон экрана (UX + скриншот): onboarding, home ×2, menu, search ×2, dish, cart ×2, group-cart, auth, checkout, order, orders, address, assistant ×2, restaurants, restaurant, booking, banquet, qr-menu, gift, profile ×2, loyalty, wheel, promos, support, settings, director | `screens.visual` | ✅ 32 + 13 `test.fail` (UX-долги) |
-| Reels, rate, promo (модалка) — эталона нет: Reels открывается в сломанном состоянии, у rate и promo медленный сетап (rate покрыт в c13) | — | — |
-| AR | — | заглушка, тестов нет |
+| Reels, rate, promo (модалка), AR в `screens.visual` — эталона нет (AR снимается в `c11-ar`): Reels открывается в сломанном состоянии, у rate и promo медленный сетап (rate покрыт в c13) | — | — |
+| C11 AR: блюдо → «На вашем столе» → размер 25/30/35 меняет цену (530/690/910) → разбор → ингредиент → «На столе» (камеры нет — подсказка) → в корзину 35 см; вращение жестом; эталон `ar-exploded` (GL-холст замаскирован) | `c11-ar` (проект `pixel7-ar`) | ✅ 2 |
 | Pure-логика `features/*/model`, `entities/*/model`, `shared/lib/format` | `tests/unit/*`, `src/**/__tests__` | ✅ |
 | Контракт Api: orders, booking, catalog/auth, loyalty, table, gifts (+ `src/features/table` и `loyalty`) | `tests/contract/*` | ✅ |
-| Реестр testID ↔ `src` | `tests/contract/testids.contract.test.ts` | ✅ 289 |
+| Реестр testID ↔ `src` | `tests/contract/testids.contract.test.ts` | ✅ 296 |
 
 ## Правила для unit-тестов
 - Данные собираем только фабриками из `tests/fixtures`. **Seed** (`src/mocks/seed`) в unit-тестах не используем: он меняется. Проверки самого seed идут в contract-тестах через `Api`.
@@ -90,7 +92,7 @@ tests/
 
 ## Соглашение о testID
 
-`testID` в kebab-case по схеме `screen-element[-qualifier]`. react-native-web выводит его как `data-testid`. Источник правды — `tests/e2e/support/testids.ts`, `TID.<screen>.<element>`. `tests/contract/testids.contract.test.ts` проверяет, что каждый литерал из реестра есть в `src`.
+`testID` в kebab-case по схеме `screen-element[-qualifier]`. react-native-web выводит его как `data-testid`. Источник правды — `tests/e2e/support/testids.ts`, `TID.<screen>.<element>`. Заглушек больше нет. Для id, о которых договорились до появления экрана, заводите блок `planned: {…}`: контракт-тест его пропускает. `tests/contract/testids.contract.test.ts` проверяет, что каждый литерал из реестра есть в `src`.
 
 | Шаблон | Смысл |
 |---|---|
@@ -118,10 +120,14 @@ tests/
 - `skipOnboarding` — сразу открыть главную. Профиль вкуса при этом не настроен: подборка «Самое популярное», без пояснений «почему»;
 - `loggedIn` — демо-пользователь +7 921 555-12-34 с историей заказов (пятничный ритуал) и 2 спинами колеса;
 - `persist: false` — AsyncStorage не используется, каждый тест начинает с чистого состояния;
-- `reducedMotion` приложение **пока не читает**. Анимации успокаивает `reducedMotion: 'reduce'` в конфиге Playwright;
+- `reducedMotion` отключает автовращение 3D в AR, и тогда кадр рендерится только при изменениях. **Для AR флаг обязателен**: без него программный GL выдаёт около 2 кадров в секунду, и клики не дожидаются ответа. Остальные анимации успокаивает `reducedMotion: 'reduce'` в конфиге Playwright;
 - любой непустой набор флагов переключает «Шеф ИИ» на офлайн-мозг (`scripted.ts`): ответы детерминированы, перед ответом пауза около 450 мс.
 
 **Часы.** `{ now }` вызывает `page.clock.install`: время стартует с заданного момента и идёт дальше. `FRIDAY_EVENING` (пт 23.10.2026, 19:30) нужен для J2 и эталонов. `SUNDAY_NOON` (вс 25.10, 12:00) нужен для броней: «завтра» — понедельник, и 19:00 на Невском свободно. В субботу вечером в seed всё занято, поэтому «завтра 19:00» по реальным часам падало бы по пятницам.
+
+**Навигация напрямую.** В режиме e2e `window.__ZHAR_NAV__` — это navigation ref приложения: `await app.navigate('AR', { dishId: 'bg-zhar' })`. Используйте его, чтобы сократить подготовку, но сценарий истории проходите через UI.
+
+**AR.** На время рендера GL кадры становятся медленными, и проверка «stable» в Playwright ждёт по 2–20 с на клик. Поэтому в `c11-ar.spec.ts` контролы нажимаются через `tapAr` (`toBeVisible` + `click({ force: true })`). Холст `ar-view` на скриншотах маскируется: его пиксели зависят от GPU.
 
 **DOM.** Экраны стека под верхним остаются в DOM с `display: none`, и `app.tid()` их отфильтровывает. Посещённые вкладки остаются «видимыми» за краем экрана, поэтому повторяющиеся id ищите внутри корня экрана.
 
@@ -131,7 +137,7 @@ tests/
 
 ## UX- и UI-проверки
 - `await expectUx(page, 'cart')` — soft-ассерт по корню `cart-screen` плюс глобальные элементы (таб-бар, корзина-бар, капсула, тосты, шиты) за вычетом известных долгов экрана из `support/known-issues.ts`. Под капотом `expectGoodUx`/`collectUxViolations`. Проверяется: не больше одной видимой `*-primary-cta`, тап-цели не меньше 48×48 dp, нет горизонтального переполнения, контраст по WCAG у помеченного текста, у каждого интерактивного элемента есть testID. Исключения в приложении: `dataSet={{ uxIgnore: 'tap' }}`. В тесте — опции `ignore: [selector]` и `scope`.
-- `await expectScreen(page, name, { mask })` — `toHaveScreenshot` с `maxDiffPixelRatio: 0.02` и `threshold: 0.2`. CSS-анимации отключены. Маскируются `*-live`, `<video>`, карты, видоискатель QR и заголовок статуса заказа. Эталоны лежат в `tests/e2e/__screenshots__/<spec>/<name>.png`.
+- `await expectScreen(page, name, { mask })` — `toHaveScreenshot` с `maxDiffPixelRatio: 0.02` и `threshold: 0.2`. CSS-анимации отключены. Маскируются `*-live`, `<video>`, карты, видоискатель QR и заголовок статуса заказа. Эталоны лежат в `tests/e2e/__screenshots__/<spec>/<name>.png`: `screens.visual.spec.ts/*` и `c11-ar.spec.ts/ar-exploded.png`.
 - **Известные UX-долги** (`support/known-issues.ts`). У каждого экрана с долгами есть `test.fail` в `screens.visual.spec.ts`, который гоняет эвристики без исключений. Когда приложение исправит все долги экрана, тест «неожиданно пройдёт». Тогда удалите записи из `known-issues.ts`.
 
 ## Как поддерживать тесты при новой сборке

@@ -1,7 +1,7 @@
 /**
  * Single source of truth for testIDs used by E2E specs (mirrored in docs/testing.md).
- * Reconciled with `grep -rn "testID=" src` — every id below exists in the app unless it sits in a
- * `planned` block (only AR is still a placeholder).
+ * Reconciled with `grep -rn "testID=" src` — every id below exists in the app (no placeholders are left;
+ * use a `planned: {…}` block for ids agreed before a screen exists — the registry contract test skips it).
  *
  * Convention: kebab-case `screen-element[-qualifier]`.
  *  - `<screen>-screen`         root container of every screen (used to wait for navigation)
@@ -442,7 +442,18 @@ export const TID = {
     deleteConfirm: 'settings-delete-confirm',
     deleteCancel: 'settings-delete-cancel',
   },
-  ar: { screen: 'ar-screen' }, // the only placeholder left
+  ar: {
+    screen: 'ar-screen', // route 'AR' { dishId }: bg-zhar, pz-pepperoni, rl-philadelphia, sal-poke-salmon, des-cheesecake
+    back: 'ar-back',
+    mode: 'ar-mode', // Segmented: ar-mode-orbit (3D) | ar-mode-table (На столе)
+    view: 'ar-view', // GL canvas, drag rotates — mask in screenshots
+    size: item('ar-size'), // 25 | 30 | 35 (pizza only)
+    explode: 'ar-explode',
+    ingredients: 'ar-ingredients',
+    part: item('ar-part'), // by index
+    tableHint: 'ar-table-hint',
+    add: 'ar-add', // «В корзину · N ₽», adds with the chosen size and goes back
+  },
 } as const;
 
 /** Every literal testID the specs rely on (used by the registry self-check). */

@@ -93,6 +93,9 @@ export const KNOWN_UX: Record<string, KnownUx[]> = {
     // small switch is the tap target (the row title is not pressable).
     { selector: '[data-testid="settings-screen"] [role="switch"]', check: 'tapTargets', bug: 'settings switches are 40×20 tap targets' },
   ],
+  ar: [
+    { selector: '[data-testid="ar-mode"]', check: 'tapTargets', bug: 'ar-mode segments are 40 dp tall' },
+  ],
   global: [
     // NEEDS testID (shared/ui/Sheet.tsx): every sheet's backdrop is a Pressable «Закрыть» without testID
     // (suggested `<sheet testID>-backdrop`, e.g. `director-panel-backdrop`).
