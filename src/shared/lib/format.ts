@@ -69,3 +69,10 @@ export function phoneDigits(masked: string): string {
 export function weight(value: number, unit: 'г' | 'мл' | 'шт'): string {
   return `${value}${NBSP}${unit}`;
 }
+
+/** 850 м / 1,2 км / 12 км */
+export function distance(m: number): string {
+  if (m < 950) return `${Math.max(50, Math.round(m / 50) * 50)} м`;
+  const km = m / 1000;
+  return `${km < 10 ? km.toFixed(1).replace('.', ',') : Math.round(km)} км`;
+}

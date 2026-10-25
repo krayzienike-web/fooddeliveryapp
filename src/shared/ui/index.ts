@@ -9,6 +9,7 @@ export * from './Screen';
 export * from './Segmented';
 export * from './Sheet';
 export * from './Skeleton';
+export * from './Slider';
 export * from './Stepper';
 export * from './Toast';
 export * from './Txt';

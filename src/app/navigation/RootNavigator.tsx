@@ -58,7 +58,7 @@ export function RootNavigator() {
   return (
     <Stack.Navigator
       initialRouteName={onboarded ? 'Tabs' : 'Onboarding'}
-      screenOptions={{ headerShown: false, cardStyle: { backgroundColor: c.bg }, ...TransitionPresets.SlideFromRightIOS, gestureEnabled: true }}
+      screenOptions={{ headerShown: false, cardStyle: { backgroundColor: c.bg, flex: 1 }, ...TransitionPresets.SlideFromRightIOS, gestureEnabled: true }}
     >
       <Stack.Screen name="Tabs" component={Tabs} />
       <Stack.Screen name="Onboarding" component={OnboardingScreen} options={{ ...TransitionPresets.FadeFromBottomAndroid }} />
