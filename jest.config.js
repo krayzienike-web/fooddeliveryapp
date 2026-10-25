@@ -18,6 +18,8 @@ module.exports = {
   transform: {
     '^.+\\.[jt]sx?$': ['babel-jest', { presets: [presetExpo], babelrc: false, configFile: false }],
   },
+  // three ships ESM only: let babel transform it (procedural AR dishes are unit-tested).
+  transformIgnorePatterns: ['/node_modules/(?!three/)'],
   testPathIgnorePatterns: ['/node_modules/', '/dist/', '/tests/e2e/'],
   clearMocks: true,
 };

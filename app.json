@@ -28,7 +28,14 @@
       "expo-video",
       "expo-font",
       "expo-speech-recognition",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "ЖАР использует камеру, чтобы показать блюдо на вашем столе в натуральную величину и отсканировать QR на столе в ресторане.",
+          "recordAudioAndroid": false
+        }
+      ]
     ],
     "scheme": "zhar",
     "experiments": {
