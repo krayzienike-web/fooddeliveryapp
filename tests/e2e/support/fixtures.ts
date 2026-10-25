@@ -20,7 +20,7 @@ export { expect };
 export { TID, kebab } from './testids';
 export { expectGoodUx, collectUxViolations } from './ux';
 export { KNOWN_UX, knownUxIgnore } from './known-issues';
-export { FRIDAY_EVENING, visible } from './app';
+export { FRIDAY_EVENING, SUNDAY_NOON, visible } from './app';
 export type { App } from './app';
 
 /** `expectGoodUx` scoped to `<screen>-screen`, minus the documented known debts of that screen (support/known-issues.ts). */
@@ -32,4 +32,4 @@ export async function expectUx(page: Page, screen: string, opts: UxOptions = {})
   const msg = v.map((x) => `  [${x.check}] ${x.testId ?? '-'}: ${x.detail}`).join('\n');
   expect.soft(v, `UX heuristics on "${screen}":\n${msg}`).toEqual([]);
 }
-export { expectScreen, settle } from './visual';
+export { expectScreen, settle, waitForStill } from './visual';

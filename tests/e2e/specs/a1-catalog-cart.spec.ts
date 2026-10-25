@@ -119,7 +119,7 @@ test.describe('A1 · Каталог и корзина', () => {
     await app.dish.expectOpen();
   });
 
-  test('address: pick a suggestion and save (logged in)', async ({ app, page }) => {
+  test('address: save the current address (logged in)', async ({ app, page }) => {
     await app.open({ loggedIn: true });
     await app.tap(TID.home.address);
     await app.address.expectOpen();

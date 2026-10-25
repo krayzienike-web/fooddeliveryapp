@@ -46,7 +46,7 @@ export default defineConfig({
     ? undefined
     : {
         // Build the static web export once (or on E2E_REBUILD=1), then serve dist/ (no SPA routing needed: navigation is in-memory).
-        command: `sh -c '{ [ -f dist/index.html ] && [ -z "$E2E_REBUILD" ]; } || npx expo export --platform web --output-dir dist; exec python3 -m http.server ${PORT} --bind 127.0.0.1 --directory dist'`,
+        command: `sh -c '{ [ -f dist/index.html ] && [ -z "$E2E_REBUILD" ]; } || npx expo export --platform web --output-dir dist; exec python3 -m http.server ${PORT} --bind 127.0.0.1 --directory dist 2>/dev/null'`,
         url: `http://127.0.0.1:${PORT}/index.html`,
         reuseExistingServer: !process.env.CI,
         timeout: 600_000,

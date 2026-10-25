@@ -3,14 +3,14 @@
  * In e2e the assistant always answers with the deterministic offline brain (src/features/ai-assistant/model/scripted.ts;
  * `IS_E2E` short-circuits getAiClient), with a ~450 ms «typing» beat.
  */
-import { test, expect, TID, expectUx, type App } from '../support/fixtures';
+import { test, expect, TID, expectUx, SUNDAY_NOON, type App } from '../support/fixtures';
 
 const rubles = (s: string) => Number(s.replace(/\D/g, ''));
 const chip = (app: App, text: string) => app.prefixed('assistant-chip-', app.assistant.root).filter({ hasText: text });
 const lastCard = (app: App) => app.tid(TID.assistant.cardDishes).last();
 
 async function openAssistant(app: App, flags = {}) {
-  await app.open(flags);
+  await app.open(flags, { now: SUNDAY_NOON });
   await app.goTab('assistant');
   await app.assistant.expectOpen();
 }

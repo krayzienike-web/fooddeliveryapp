@@ -37,23 +37,24 @@ test.describe('B2 · Food Reels', () => {
     await app.expectNoErrors();
   });
 
-  test('swipe up shows the next dish', async ({ app, page }) => {
+  // BUG (ReelsScreen.tsx, web export): the feed opens scrolled to the very end — the FlatList scroller starts at
+  // scrollTop ≈ 17 × screen height and the guest sees only the «Вы посмотрели всё новое» footer (first reel is above
+  // the viewport). Repro: Home → «Смотреть, как готовим». Expected: the first reel fills the screen.
+  test.fail('opens on the first reel', async ({ app, page }) => {
     await app.open();
     await app.tap(TID.home.reelsEntry);
     await app.reels.expectOpen();
-    const name = async () => (await app.tid(TID.reels.dishCard).first().innerText()).split('\n')[0];
-    await expect(app.tid(TID.reels.dishCard).first()).toBeVisible();
-    const first = await name();
+    await expect(page.getByText('Вы посмотрели всё новое')).not.toBeInViewport({ timeout: 3_000 });
+    await expect(app.tid(TID.reels.dishCard).first()).toBeInViewport({ timeout: 3_000 });
+  });
+
+  // Blocked by the bug above (the list starts at its end, so there is no «next» reel to swipe to).
+  test.fixme('swipe up shows the next dish', async ({ app, page }) => {
+    await app.open();
+    await app.tap(TID.home.reelsEntry);
+    const first = (await app.tid(TID.reels.dishCard).first().innerText()).split('\n')[0];
     const vp = page.viewportSize()!;
     await app.swipe({ x: vp.width / 2, y: vp.height * 0.7 }, { x: vp.width / 2, y: vp.height * 0.1 }, 16);
-    await expect.poll(async () => {
-      const cards = app.tid(TID.reels.dishCard);
-      const n = await cards.count();
-      for (let i = 0; i < n; i++) {
-        const box = await cards.nth(i).boundingBox();
-        if (box && box.y > 0 && box.y < vp.height) return (await cards.nth(i).innerText()).split('\n')[0];
-      }
-      return first;
-    }).not.toBe(first);
+    await expect(app.tid(TID.reels.dishCard).first()).not.toContainText(first);
   });
 });

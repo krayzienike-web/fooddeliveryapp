@@ -33,6 +33,12 @@ export const DEFAULT_FLAGS: E2EFlags = { seed: 1, speed: 20, skipOnboarding: tru
 /** Friday 23 Oct 2026, 19:30 Moscow — the demo user's «как обычно в пятницу» ritual window (J2). */
 export const FRIDAY_EVENING = new Date('2026-10-23T19:30:00+03:00');
 
+/**
+ * Sunday 25 Oct 2026, 12:00 Moscow — for booking flows: «завтра» is a Monday with 19:00 free at «ЖАР на Невском»
+ * (Saturday evenings are fully booked in the seed, so real-time «tomorrow 19:00» would be flaky on Fridays).
+ */
+export const SUNDAY_NOON = new Date('2026-10-25T12:00:00+03:00');
+
 /** Console noise from third-party code that is not an app error. */
 const IGNORED_CONSOLE = [/Download the React DevTools/i, /favicon/i];
 
@@ -73,6 +79,9 @@ export class App {
     if (opts.now) await this.page.clock.install({ time: opts.now });
     await this.page.goto('/');
     await expect(this.page.locator('[data-testid="home-screen"], [data-testid="onboarding-screen"]').first()).toBeVisible({ timeout: 30_000 });
+    // `loggedIn` is bootstrapped asynchronously (verifyCode through the mock): wait for the personal greeting on Home,
+    // otherwise an early tap on «К оформлению» lands on Auth.
+    if (f.loggedIn && f.skipOnboarding) await expect(this.page.getByText(/^(Доброе утро|Добрый день|Добрый вечер|Доброй ночи), \S/)).toBeVisible();
   }
 
   /** Visible element by testID. */

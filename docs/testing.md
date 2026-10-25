@@ -1,6 +1,8 @@
 # Тестирование ЖАР
 
-Три слоя: **domain/unit** («бэк», Jest) → **contract** (mock-бэкенд через `Api`, Jest) → **E2E/UX/UI** (Playwright по веб-экспорту, Pixel 7 412×915, ru-RU, Europe/Moscow).
+Три слоя: **domain/unit** («бэк», Jest) → **contract** (mock-бэкенд через `Api` + реестр testID, Jest) → **E2E/UX/UI** (Playwright по веб-экспорту, Pixel 7 412×915, ru-RU, Europe/Moscow, тёмная тема, reduced motion).
+
+Сейчас: **Jest 609** (unit 287 в `tests/unit` и `src/**/__tests__`, contract 322, из них 289 — сверка реестра testID с `src`); **Playwright 122**: 65 сценарных тестов, 32 эталонных экрана (UX + скриншот), 13 «известных UX-долгов», 12 smoke/самотестов UX-чекера. Явно помечены: 5 `test.fail` (баги), 2 `test.fixme`, 1 `test.failing` в Jest.
 
 ## Запуск
 
@@ -9,111 +11,140 @@
 | `npm test` | Jest: `tests/unit/**`, `tests/contract/**`, `src/**/__tests__/**` |
 | `npm run test:watch` | то же в watch-режиме |
 | `npm run e2e` | собирает `dist/` (если его нет) через `expo export --platform web`, раздаёт `python3 -m http.server` на :4173, гоняет `tests/e2e/specs` |
-| `E2E_REBUILD=1 npm run e2e` | принудительно пересобрать `dist/` перед прогоном |
-| `E2E_BASE_URL=http://localhost:8081 npm run e2e` | прогон против уже поднятого сервера (например, `npx expo start --web`) |
+| `E2E_REBUILD=1 npm run e2e` | принудительно пересобрать `dist/` перед прогоном (нужно после любых правок в `src/`) |
+| `E2E_BASE_URL=http://localhost:8081 npm run e2e` | прогон против уже поднятого сервера. Порт 8081 часто занят чужим `expo start` — не убивайте его, работайте через `dist/` |
 | `npm run e2e:update` | перезаписать эталонные скриншоты (`tests/e2e/__screenshots__`) |
-| `npx playwright test j4` | один сценарий; `--headed`/`--debug`/`--ui` для отладки |
+| `npx playwright test j4` | один файл; `-g "текст"` — один тест; `--headed`/`--debug`/`--ui` для отладки |
 | `npx tsc --noEmit` | тайпчек проекта, включая тесты |
 
-Chromium уже лежит в `/opt/pw-browsers` (`PLAYWRIGHT_BROWSERS_PATH`). **Никогда** не запускайте `playwright install`. Версия `@playwright/test` (1.63.0) зафиксирована под этот браузер; при обновлении меняйте обе вместе.
+**Браузер.** Локально Chromium уже лежит в `/opt/pw-browsers` (`PLAYWRIGHT_BROWSERS_PATH`). **Никогда** не запускайте `playwright install` локально. Версия `@playwright/test` (1.63.0) зафиксирована под этот браузер; обновляйте их вместе. В CI браузер ставится командой `npx playwright install --with-deps chromium`.
+
+Если на :4173 уже работает сервер, Playwright использует его (`reuseExistingServer`), и `E2E_REBUILD` не сработает: сначала остановите старый сервер.
 
 Отчёты и трейсы лежат в `tests/e2e/.artifacts/` (в git не попадают). Открыть отчёт: `npx playwright show-report tests/e2e/.artifacts/report`.
+
+## CI (`.github/workflows/ci.yml`)
+
+Запускается на каждый push и pull request: `npm ci` → `npx tsc --noEmit` → `npm test -- --ci` → `npx expo export --platform web` → `npx playwright install --with-deps chromium` → `npm run e2e`. Если что-то упало, HTML-отчёт и трейсы загружаются артефактом `playwright-report`. В CI действуют `retries: 1`, `workers: 2` и `forbidOnly`. Эталоны снимались в Linux на том же Chromium. Шрифты приложение грузит само, поэтому допуска `maxDiffPixelRatio: 0.02` хватает. Если CI стабильно расходится с эталоном только по сглаживанию, пересоберите эталоны из отчёта CI. Поднимать допуск не нужно.
 
 ## Структура
 
 ```
 jest.config.js            babel-jest + babel-preset-expo, алиас @/ → src/, TZ=Europe/Moscow
 playwright.config.ts      Pixel 7 412×915, ru-RU, reducedMotion, webServer = dist/
+.github/workflows/ci.yml  tsc → jest → web export → playwright (Chromium), отчёт артефактом при падении
 tests/
-  fixtures/index.ts       типизированные фабрики: makeDish, makeOrder, makeLine, makePromo, makeProfile, makeIncident, makeTotalsInput, at()
-  jest-globals.d.ts       типы Jest и Node для tsc
-  unit/                   чистая логика из entities/*/model и features/*/model
-  contract/               контракт Api: harness.ts + *.contract.test.ts (включаются, когда появится src/services/mock/index.ts)
+  fixtures/index.ts       фабрики: makeDish, makeOrder, makeLine, makePromo, makeProfile, makeIncident, makeModifierGroup, makeTotalsInput, at()
+  unit/                   чистая логика: pricing, lifecycle, incidents, loyalty, predictions, recommendations, search, ai-assistant,
+                          format (₽, телефон, даты), cart-store (zustand), director/defaultOptions/achievements
+  contract/               Api мока (orders, booking, catalog-auth, loyalty-table) + testids.contract (реестр ↔ src)
   e2e/
-    support/testids.ts    реестр testID (единый источник правды)
-    support/app.ts        App-драйвер, page objects (Screen) и переиспользуемые флоу (loginWithSms, checkoutAndPay, openDirector…)
-    support/ux.ts         UX-эвристики (expectGoodUx / collectUxViolations)
-    support/visual.ts     визуальная регрессия (expectScreen)
-    support/fixtures.ts   `test`/`expect` с фикстурой `app` — спеки импортируют отсюда
-    specs/smoke.spec.ts           всегда включён: приложение грузится без ошибок, нет горизонтального переполнения
-    specs/ux-checker.spec.ts      самотест UX-чекера на синтетической разметке
-    specs/j1…j9-*.spec.ts         Job Stories из docs/job-stories.md (пока `test.fixme`)
-    specs/screens.visual.spec.ts  эталон для каждого экрана: UX + скриншот (`test.fixme`, пока нет экранов)
-    __screenshots__/              эталонные скриншоты (коммитятся)
+    support/testids.ts    реестр testID (единый источник правды; блок `planned` — только для заглушек)
+    support/app.ts        App-драйвер, page objects (Screen), флоу: addFromFeed, openCart, loginWithSms, checkoutAndPay,
+                          placeOrder, slideToPay, swipe/touchTap (жесты), openDirector, triggerIncident, expectToast…
+    support/known-issues.ts  известные UX-долги приложения (исключаются из expectUx, у каждого есть test.fail)
+    support/ux.ts         UX-эвристики (expectGoodUx / collectUxViolations, опция scope)
+    support/visual.ts     expectScreen, settle, waitForStill
+    support/fixtures.ts   `test`/`expect` с фикстурой `app`, expectUx(page, screen), FRIDAY_EVENING, SUNDAY_NOON
+    specs/                j1…j9 (Job Stories), a1 каталог/корзина, b1 Шеф ИИ, b2 Reels, c13 оценка+поддержка,
+                          c17 QR-стол, c18 подарок, p1 профиль/настройки, screens.visual, smoke, ux-checker
+    __screenshots__/      эталонные скриншоты (коммитятся)
 ```
 
-### Правила для unit-тестов
+## Матрица покрытия
+
+| Story / экран | Spec | Статус |
+|---|---|---|
+| J1 Голоден сейчас: онбординг (свайп + кнопки) → радар → «почему» в ленте → Reels «+» → SMS 0000 → slide-to-pay | `j1-hungry-now` | ✅ 3 теста |
+| J2 Повторяю любимое: пятница 19:30 → «Как обычно» → «Почему?» → «Повторить», «Не предлагать», полоса «Повторить» | `j2-repeat-favorite` | ✅ 3 · ❌ `test.fail`: гость видит чужую историю |
+| J3 Компания: ИИ «нас 4, бюджет 4000…» → «Добавить всё»; групповая корзина, друзья, «Поровну» | `j3-group-order` | ✅ 2 |
+| J4 Жду заказ: живая кухня, капсула на вкладках, курьер на карте, «Доставлен», звёзды, колесо | `j4-track-order` | ✅ 3 · ⏸ `fixme`: нет кнопки «Отменить заказ» |
+| J5 Иду в ресторан: список/карта → ресторан → дата/гости/19:00 → автостол/схема → повод → предзаказ → SMS → подтверждение → календарь; >12 гостей → банкет | `j5-book-table` | ✅ 5 |
+| J6 Событие: ползунки, формат, зал, меню ИИ, «Другое», SMS → «отправлено менеджеру»; выездной без зала | `j6-banquet` | ✅ 3 |
+| J7 Инцидент через панель режиссёра: задержка → баллы на балансе, замена, отмена, лимит 2 сообщения, оплата вне лимита | `j7-incident` | ✅ 6 |
+| J8 Выгода: «Бонусы» (уровень, баланс, достижения, история), колесо (2 спина → нет), приз ПРИЗ-… в «Акциях», промокод | `j8-loyalty` | ✅ 5 |
+| J9 Самовывоз: −10 %, ресторан в оформлении, «Я подхожу» → полка → «Я на месте» → выдан | `j9-pickup` | ✅ 1 |
+| A1 Меню, фильтры, блюдо (модификаторы, живая цена), корзина (qty, промокод, апселл, очистка), поиск, адрес | `a1-catalog-cart` | ✅ 5 · ❌ `test.fail`: «пицца» не находит пиццы |
+| B1 Шеф ИИ: стартер → карточка → «Добавить всё» → корзина; «Дешевле», «Добавить десерт»; бронь; банкет; поиск → «Спросить у Шефа ИИ»; «Где мой заказ?» | `b1-assistant` | ✅ 7 |
+| B2 Reels: видео/постер, лайк, «+», бейдж, карточка блюда | `b2-reels` | ✅ 1 · ❌ `test.fail`: лента открывается в конце · ⏸ `fixme`: свайп к следующему |
+| C13 Оценка (5★ ИИ-фото, ≤3★ → поддержка) · A18 Поддержка (возврат баллами, опоздание, оператор) | `c13-rate-support` | ✅ 5 · ❌ `test.fail`: поле ввода выходит за экран |
+| C17 За столом (QR): скан, дозаказ, официант, «Поровну»/«Моё», чаевые, оплата, вход | `c17-qr-table` | ✅ 3 |
+| C18 Подарок: дизайн, сумма, валидация имени и телефона, отправка, код, вход | `c18-gift` | ✅ 2 |
+| Профиль и настройки: заказы → повтор, брони, избранное, тема, диета, персонализация, удаление в 2 шага, выход | `p1-profile-settings` | ✅ 6 |
+| Эталон экрана (UX + скриншот): onboarding, home ×2, menu, search ×2, dish, cart ×2, group-cart, auth, checkout, order, orders, address, assistant ×2, restaurants, restaurant, booking, banquet, qr-menu, gift, profile ×2, loyalty, wheel, promos, support, settings, director | `screens.visual` | ✅ 32 + 13 `test.fail` (UX-долги) |
+| Reels, rate, promo (модалка) — эталона нет: Reels открывается в сломанном состоянии, у rate и promo медленный сетап (rate покрыт в c13) | — | — |
+| AR | — | заглушка, тестов нет |
+| Pure-логика `features/*/model`, `entities/*/model`, `shared/lib/format` | `tests/unit/*`, `src/**/__tests__` | ✅ |
+| Контракт Api: orders, booking, catalog/auth, loyalty, table, gifts (+ `src/features/table` и `loyalty`) | `tests/contract/*` | ✅ |
+| Реестр testID ↔ `src` | `tests/contract/testids.contract.test.ts` | ✅ 289 |
+
+## Правила для unit-тестов
 - Данные собираем только фабриками из `tests/fixtures`. **Seed** (`src/mocks/seed`) в unit-тестах не используем: он меняется. Проверки самого seed идут в contract-тестах через `Api`.
-- Время локальное (Moscow): `at(2026, 10, 23, 19, 30)` — пятница.
-- Найден баг, а чинить сейчас нельзя: тест оставляем, помечаем `test.failing(...)` и пишем рядом комментарий `// BUG (file: function): input → expected vs actual`. После фикса Jest упадёт с «failing test passed» — тогда меняем `test.failing` на `it`.
+- Время локальное (Moscow): `at(2026, 10, 23, 19, 30)` — пятница. Для логики, которая читает «сейчас», используйте `jest.useFakeTimers()` + `jest.setSystemTime()`.
+- Zustand-сторы можно тестировать напрямую (`useCart.getState()`). AsyncStorage подменяем официальным моком: `jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'))`.
+- Не дублируйте тесты, которые лежат рядом с кодом (`src/features/{booking,loyalty,table}/model/__tests__`), и `tests/unit/ai-assistant.test.ts`.
+- Найден баг, а чинить сейчас нельзя: тест оставляем, помечаем `test.failing(...)` и пишем рядом комментарий `// BUG (file: function): input → expected vs actual`. После фикса Jest упадёт с «failing test passed», и тогда `test.failing` меняем на `it`.
 
 ### Contract-тесты
-`tests/contract/harness.ts` проверяет, есть ли `src/services/mock/index.ts`. Пока его нет, все наборы зарегистрированы через `describe.skip` (плюс один `test.todo`). Ожидаемая фабрика:
-
-```ts
-export function createApi(opts?: { latencyMs?: number; seed?: number }): Api;
-```
-
-Требования к моку, которые проверяют тесты: `director.reset()` возвращает чистое состояние; `director.setSpeed(600)` проводит заказ по всему флоу примерно за 30 с реального времени; `orders.subscribe` пушит обновления статуса и инцидентов; ошибки — это `ApiError` (`{ code, message }`), например `not_found` для неизвестного заказа и `conflict` при двойном бронировании стола; `director.triggerIncident` возвращает `null`, когда упирается в лимит из 2 сообщений (кроме `payment_failed`).
+`tests/contract/harness.ts`: `makeApi()` создаёт `createApi({ latencyMs: 0, seed: 1 })`, есть `describeContract`, `expectApiError`, `waitFor`. Каждый файл создаёт свежий api и вызывает `director.reset()`. Требования к моку: `director.reset()` возвращает чистое состояние; `director.setSpeed(600)` проводит заказ по всему флоу примерно за 30 с; `orders.subscribe` пушит обновления; ошибки — `ApiError` (`{ code, message }`); `director.triggerIncident` возвращает `null`, когда упирается в лимит из 2 сообщений (кроме `payment_failed`); `loyalty.spin` возвращает `conflict`, когда спинов нет; заказ от 1500 ₽ даёт бонусный спин; призы, кроме баллов, становятся персональными промокодами `ПРИЗ-XXXX`.
 
 ## Соглашение о testID
 
-`testID` в kebab-case по схеме `screen-element[-qualifier]`. react-native-web выводит его как `data-testid`.
+`testID` в kebab-case по схеме `screen-element[-qualifier]`. react-native-web выводит его как `data-testid`. Источник правды — `tests/e2e/support/testids.ts`, `TID.<screen>.<element>`. `tests/contract/testids.contract.test.ts` проверяет, что каждый литерал из реестра есть в `src`.
 
 | Шаблон | Смысл |
 |---|---|
 | `<screen>-screen` | корневой контейнер экрана (по нему e2e ждут навигацию) |
-| `<screen>-primary-cta` | **единственное** главное действие экрана. UX-чекер падает, если видно больше одного |
-| `<screen>-<element>-<id>` | элемент списка; `<id>` — id сущности, приведённый через `kebab()`: `19:00` → `19-00`, `kitchen_delay` → `kitchen-delay` |
-| `*-live` | меняющийся во времени контент (таймеры, карта, видео, ETA): маскируется на скриншотах |
-| `*-title`, `*-price`, `*-total`, `*-text` | текст, у которого проверяется контраст. Любой другой текст можно пометить `dataSet={{ uxContrast: '1' }}` |
+| `<screen>-primary-cta` | **единственное** главное действие экрана. UX-чекер падает, если видно больше одного. Исключения в приложении: `restaurant-book`, `booking-submit`, `banquet-send`, `gift-send`, `qr-pay` |
+| `<screen>-<element>-<id>` | элемент списка. id сущности берётся **как есть**: `dish-card-pz-pepperoni`, `director-incident-kitchen_delay`, `checkout-payment-card_courier`, `booking-slot-1900`, `booking-table-B2` |
+| `<id>-inc` / `<id>-dec` | кнопки общего `Stepper` (`dish-qty-inc`, `cart-qty-<dishId>-inc`, `booking-guests-inc`) |
+| `<id>-<option>` | сегменты общего `Segmented` (`home-mode-pickup`, `restaurants-view-map`, `qr-split-mode-equal`) |
+| `<id>-back` | «Назад» общего `Header`. Если у Header нет своего testID, кнопка называется `header-back` |
+| `*-live` | меняющийся во времени контент (ETA, живая кухня, карта курьера). На скриншотах маскируется |
+| `*-title`, `*-price`, `*-total`, `*-text` | текст, у которого проверяется контраст |
 
-Неактивные варианты (занятый стол и т. п.) получают `aria-disabled="true"` (`accessibilityState={{ disabled: true }}`). Выбранные вкладки и переключатели — `aria-selected` (`accessibilityState={{ selected }}`).
+Особенности, о которые легко споткнуться:
+- `DishCard` используется на главной, в меню и в поиске, поэтому `dish-card-*`, `dish-add-*`, `dish-qty-*` и `dish-why-*` повторяются. Ищите их внутри корня экрана: `app.menu.root.getByTestId(...)`. Лента главной называется `for-you-list`, без префикса `home-`.
+- Карточка-предсказание на главной имеет id `prediction-card`, `prediction-why`, `prediction-mute`, `prediction-cta`.
+- Reels: каждый отрисованный ролик повторяет `reels-like`, `reels-add` и т. д. Берите `.first()`.
+- Панель режиссёра — это Sheet `director-panel`. Открывается тройным тапом по `home-logo`. Кнопки закрытия нет, закрывают тапом по фону (`app.closeDirector()`).
+- Состояние «выбрано» не выводится как `aria-selected` (RN-web так не делает для `role=button`). Проверяйте результат (текст, сумма), а не атрибут. Отключённые элементы получают `aria-disabled="true"`.
 
-### testID по экранам (источник — `tests/e2e/support/testids.ts`)
+## E2E: как устроены тесты
 
-- **Глобальные:** `tabbar-home`, `tabbar-menu`, `tabbar-assistant`, `tabbar-restaurants`, `tabbar-profile`, `cart-bar`, `cart-bar-total`, `cart-bar-open`, `order-capsule`, `order-capsule-status`, `toast`, `header-back`
-- **onboarding:** `onboarding-screen`, `onboarding-option-<axis|dishId>`, `onboarding-progress`, `onboarding-skip`, `onboarding-primary-cta`
-- **home:** `home-screen`, `home-mode-delivery`, `home-mode-pickup`, `home-address`, `home-search`, `home-for-you-list`, `home-dish-card-<dishId>`, `home-dish-add-<dishId>`, `home-dish-why-<dishId>`, `home-category-<categoryId>`, `home-promo-<promoId>`, `home-reels-entry`, `home-prediction-card`, `home-prediction-why`, `home-prediction-mute`, `home-prediction-cta`
-- **reels:** `reels-screen`, `reels-item-<dishId>`, `reels-video-live`, `reels-like`, `reels-dislike`, `reels-primary-cta`, `reels-close`
-- **menu:** `menu-screen`, `menu-category-tab-<categoryId>`, `menu-dish-card-<dishId>`, `menu-dish-add-<dishId>`
-- **search:** `search-screen`, `search-input`, `search-result-<dishId>`, `search-did-you-mean`, `search-empty`
-- **dish:** `dish-screen`, `dish-title`, `dish-price`, `dish-option-<optionId>`, `dish-remove-ingredient-<ingredientId>`, `dish-qty-inc`, `dish-qty-dec`, `dish-qty`, `dish-primary-cta`, `dish-close`
-- **cart:** `cart-screen`, `cart-line-<dishId>`, `cart-line-inc-<dishId>`, `cart-line-dec-<dishId>`, `cart-promo-input`, `cart-promo-apply`, `cart-promo-error`, `cart-to-free-delivery`, `cart-total`, `cart-group-invite`, `cart-group-member-<memberId>`, `cart-empty`, `cart-primary-cta`
-- **auth:** `auth-screen`, `auth-phone-input`, `auth-code-input`, `auth-code-error`, `auth-resend`, `auth-primary-cta`
-- **checkout:** `checkout-screen`, `checkout-mode-delivery`, `checkout-mode-pickup`, `checkout-address`, `checkout-restaurant-<restaurantId>`, `checkout-time-asap`, `checkout-payment-<card|sbp|gpay|cash|card-courier|split>`, `checkout-points-toggle`, `checkout-tips-<amount>`, `checkout-total`, `checkout-primary-cta`
-- **order:** `order-screen`, `order-status-title`, `order-progress`, `order-eta-live`, `order-kitchen-live`, `order-chef`, `order-courier-map-live`, `order-courier`, `order-incident-card`, `order-incident-resolution-<resolutionId>`, `order-compensation`, `order-cancel`, `order-pickup-arriving`, `order-pickup-shelf`, `order-rate-star-<1..5>`, `order-primary-cta`
-- **wheel:** `wheel-screen`, `wheel-primary-cta`, `wheel-result`, `wheel-close`
-- **assistant:** `assistant-screen`, `assistant-input`, `assistant-send`, `assistant-mic`, `assistant-message-<n>`, `assistant-suggestion-<dishId>`, `assistant-chip-<n>`, `assistant-primary-cta`
-- **restaurants / restaurant:** `restaurants-screen`, `restaurants-map`, `restaurants-item-<restaurantId>`, `restaurant-screen`, `restaurant-primary-cta` (забронировать), `restaurant-banquet`, `restaurant-pickup`
-- **booking:** `booking-screen`, `booking-date-<yyyy-mm-dd>`, `booking-guests-inc`, `booking-guests-dec`, `booking-floor-plan`, `booking-table-<tableId>`, `booking-time-<hh-mm>`, `booking-preorder-add-<dishId>`, `booking-primary-cta`, `booking-confirmation`
-- **banquet:** `banquet-screen`, `banquet-guests-slider`, `banquet-budget-slider`, `banquet-format-<banquet|buffet|catering>`, `banquet-generate`, `banquet-menu-item-<dishId>`, `banquet-total`, `banquet-primary-cta`, `banquet-sent`
-- **profile:** `profile-screen`, `profile-level`, `profile-progress-ring`, `profile-points`, `profile-achievements`, `profile-achievement-<id>`, `profile-history`, `profile-login`, `profile-director`
-- **director (D0):** `director-screen`, `director-incident-<kind>` (например, `director-incident-kitchen-delay`), `director-speed-<x>`, `director-weather-<kind>`, `director-reset`, `director-close`
+**Флаги.** `App.open(flags, { now })` кладёт `window.__ZHAR_E2E__` до загрузки бандла (`src/shared/config/env.ts`). Набор по умолчанию: `{ seed: 1, speed: 20, skipOnboarding: true, loggedIn: false, reducedMotion: true, persist: false }`.
+- `seed` — детерминированный PRNG мока (номера заказов, призы колеса);
+- `speed` — множитель жизненного цикла заказа: при ×1 весь путь занимает около 135 с, при ×30 — несколько секунд. Для экрана «готовим» берите `speed: 1`;
+- `skipOnboarding` — сразу открыть главную. Профиль вкуса при этом не настроен: подборка «Самое популярное», без пояснений «почему»;
+- `loggedIn` — демо-пользователь +7 921 555-12-34 с историей заказов (пятничный ритуал) и 2 спинами колеса;
+- `persist: false` — AsyncStorage не используется, каждый тест начинает с чистого состояния;
+- `reducedMotion` приложение **пока не читает**. Анимации успокаивает `reducedMotion: 'reduce'` в конфиге Playwright;
+- любой непустой набор флагов переключает «Шеф ИИ» на офлайн-мозг (`scripted.ts`): ответы детерминированы, перед ответом пауза около 450 мс.
 
-### E2E-хуки в приложении
-До загрузки бандла `App.open()` кладёт в `window.__ZHAR_E2E__` объект `{ seed, speed, skipOnboarding, loggedIn, reducedMotion, persist }`. Приложение читает его один раз при старте и делает следующее:
-- `seed` задаёт детерминированный mock и рекомендации; ИИ-ассистент отвечает оффлайн-заготовками;
-- `speed` передаётся в `director.setSpeed`;
-- `skipOnboarding`/`loggedIn` дают стартовое состояние (демо-пользователь с историей, в которой ≥ 3 пятничных вечерних заказа, — это нужно для J2);
-- `reducedMotion` останавливает бесконечные анимации Reanimated и Lottie;
-- `persist: false` отключает чтение и запись AsyncStorage.
+**Часы.** `{ now }` вызывает `page.clock.install`: время стартует с заданного момента и идёт дальше. `FRIDAY_EVENING` (пт 23.10.2026, 19:30) нужен для J2 и эталонов. `SUNDAY_NOON` (вс 25.10, 12:00) нужен для броней: «завтра» — понедельник, и 19:00 на Невском свободно. В субботу вечером в seed всё занято, поэтому «завтра 19:00» по реальным часам падало бы по пятницам.
 
-Часы задаёт `page.clock.install` (например, «пятница 19:30» для J2).
+**DOM.** Экраны стека под верхним остаются в DOM с `display: none`, и `app.tid()` их отфильтровывает. Посещённые вкладки остаются «видимыми» за краем экрана, поэтому повторяющиеся id ищите внутри корня экрана.
+
+**Жесты.** Пан-жесты react-native-gesture-handler (свайп онбординга, slide-to-pay, слайдеры банкета, колесо) **не реагируют на mouse drag** Playwright при профиле с `hasTouch`. Нужны CDP-тач-события с паузой в кадр: `app.swipe()`, `app.swipeTasteCard()`, `app.slideToPay()`, `app.touchTap(slider, 0.99)`.
+
+**Ожидания.** Не используйте `waitForTimeout`. Используйте `expect(...).toBeVisible/ toHaveText`, `expect.poll` для чисел и `waitForStill(locator)`, чтобы дождаться конца анимации появления перед UX-проверкой и скриншотом. Цены пишутся с неразрывным пробелом U+00A0 (`2 396 ₽`). В регулярках пишите `\s`, а для чисел используйте `Number(text.replace(/\D/g, ''))`.
 
 ## UX- и UI-проверки
-- `await expectGoodUx(page, { screen: 'cart' })` — soft-ассерт. Проверяет: ≤ 1 видимой `*-primary-cta`; тап-цели ≥ 48×48 dp; нет горизонтального переполнения (горизонтальные скроллеры не считаются); контраст по WCAG (4.5 для обычного текста, 3 для крупного) у помеченного текста; у каждого интерактивного элемента есть testID. Исключение задаётся через `dataSet={{ uxIgnore: 'tap' }}` (или `contrast`, `overflow`, `testIds`, `primaryCta`, `all`) либо через опцию `ignore: [selector]`. Например, карта — сторонний виджет.
-- `await expectScreen(page, 'j4-order-cooking')` — `toHaveScreenshot` с `maxDiffPixelRatio: 0.02` и `threshold: 0.2`. CSS-анимации отключены, `*-live` и `<video>` замаскированы. Эталоны лежат в `tests/e2e/__screenshots__/<spec>/<name>.png`.
+- `await expectUx(page, 'cart')` — soft-ассерт по корню `cart-screen` плюс глобальные элементы (таб-бар, корзина-бар, капсула, тосты, шиты) за вычетом известных долгов экрана из `support/known-issues.ts`. Под капотом `expectGoodUx`/`collectUxViolations`. Проверяется: не больше одной видимой `*-primary-cta`, тап-цели не меньше 48×48 dp, нет горизонтального переполнения, контраст по WCAG у помеченного текста, у каждого интерактивного элемента есть testID. Исключения в приложении: `dataSet={{ uxIgnore: 'tap' }}`. В тесте — опции `ignore: [selector]` и `scope`.
+- `await expectScreen(page, name, { mask })` — `toHaveScreenshot` с `maxDiffPixelRatio: 0.02` и `threshold: 0.2`. CSS-анимации отключены. Маскируются `*-live`, `<video>`, карты, видоискатель QR и заголовок статуса заказа. Эталоны лежат в `tests/e2e/__screenshots__/<spec>/<name>.png`.
+- **Известные UX-долги** (`support/known-issues.ts`). У каждого экрана с долгами есть `test.fail` в `screens.visual.spec.ts`, который гоняет эвристики без исключений. Когда приложение исправит все долги экрана, тест «неожиданно пройдёт». Тогда удалите записи из `known-issues.ts`.
 
-## Чек-лист: сценарий или экран изменился
+## Как поддерживать тесты при новой сборке
 
-1. **Job Story поменялась** (`docs/job-stories.md`): обновите шапку-комментарий и шаги в `tests/e2e/specs/jN-*.spec.ts`. Новая история — новый файл `jN-<slug>.spec.ts` по образцу.
-2. **testID добавили, переименовали или удалили:** сначала правится `tests/e2e/support/testids.ts`, потом список выше. Спеки обращаются к `TID.*`, поэтому чаще всего этого достаточно.
-3. **Изменился флоу, общий для нескольких историй** (логин, оформление, директор): правьте метод в `support/app.ts` (`loginWithSms`, `checkoutAndPay`, `openDirector`), а не каждую спеку.
-4. **Изменилось бизнес-правило** (цены, пороги, лимиты, лестница компенсаций): в том же изменении обновите `tests/unit/<module>.test.ts`. Константы (`PRICING`, `LOYALTY_LEVELS`, `MAX_PROACTIVE_MESSAGES_PER_ORDER`) импортируйте, а не копируйте.
-5. **Изменился контракт `Api`** (`src/services/contracts.ts`): обновите `tests/contract/*` и требования к моку в этом документе.
-6. **Новый экран:** добавьте его в `SCREENS` в `screens.visual.spec.ts`, запустите `npm run e2e:update`, проверьте новый PNG глазами и закоммитьте.
-7. **Намеренно изменился дизайн:** `npm run e2e:update -- <spec>`, просмотрите diff PNG в ревью. «Обновить всё вслепую» нельзя.
-8. **Экран готов:** снимите `test.fixme` с соответствующих тестов и убедитесь, что `npm run e2e` зелёный.
-9. **Баг исправлен:** замените `test.failing` на `it` и удалите комментарий `BUG`.
-10. Перед коммитом: `npx tsc --noEmit && npm test` (+ `npm run e2e`, если трогали UI).
+1. **Пересоберите и прогоните:** `E2E_REBUILD=1 npm run e2e`. Сначала смотрите на `testids.contract`: `npm test` сам покажет переименованные или удалённые testID.
+2. **testID добавили, переименовали или удалили:** правьте `tests/e2e/support/testids.ts`. Спеки обращаются к `TID.*`, поэтому часто этого достаточно. Если id переехал из `planned` в реальность, перенесите его из блока `planned`.
+3. **Изменился общий флоу** (добавление в корзину, логин, оформление, оплата, панель режиссёра): правьте метод в `support/app.ts` (`addFromFeed`, `loginWithSms`, `checkoutAndPay`, `placeOrder`, `openDirector`), а не каждую спеку.
+4. **Job Story поменялась** (`docs/job-stories.md`): обновите шапку-комментарий и шаги в `jN-*.spec.ts` и строку в матрице выше. Новая история — новый файл по образцу.
+5. **Новый экран:** добавьте его в `SCREENS` в `screens.visual.spec.ts` (`ready` — элемент, который появляется последним), потом запустите `npm run e2e:update -- screens.visual -g "<name>"`, проверьте PNG глазами и закоммитьте. Добавьте сценарий в подходящую спеку и строку в матрицу.
+6. **Намеренно изменился дизайн или общий layout** (шрифт, отступы, формат цен): `npm run e2e:update -- screens.visual`, затем просмотрите diff всех PNG в ревью. Обновлять «вслепую» нельзя.
+7. **Новый UX-долг**, который нельзя исправить сейчас: добавьте запись в `support/known-issues.ts` с комментарием `BUG`/`NEEDS testID`. `test.fail` появится автоматически.
+8. **Баг исправлен** (`test.fail` или `test.failing` «неожиданно прошёл»): замените на `test`/`it`, удалите комментарий `BUG`, запись в `known-issues.ts` и строку из матрицы.
+9. **Экран перестал быть заглушкой:** снимите `test.fixme`, перенесите id из `planned` и добавьте экран в `SCREENS`.
+10. **Изменилось бизнес-правило** (цены, пороги, лимиты, лестница компенсаций, спины колеса): в том же изменении обновите `tests/unit/<module>.test.ts`. Константы (`PRICING`, `LOYALTY_LEVELS`, `WHEEL_RULES`, `MAX_PROACTIVE_MESSAGES_PER_ORDER`) импортируйте, а не копируйте.
+11. **Изменился контракт `Api`** (`src/services/contracts.ts`): обновите `tests/contract/*` и требования к моку в этом документе.
+12. Перед коммитом выполните `npx tsc --noEmit && npm test && npm run e2e`.

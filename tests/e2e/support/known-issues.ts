@@ -85,7 +85,18 @@ export const KNOWN_UX: Record<string, KnownUx[]> = {
     // BUG (shared/ui/Chip.tsx): no minWidth — a short label («5%») gives a 45 dp wide chip (same root cause as director chips).
     { selector: '[data-testid="qr-tips-5"]', check: 'tapTargets', bug: 'qr-tips-5 chip is 45 dp wide' },
   ],
+  settings: [
+    // Segmented debt (theme) + Chip width debt («ПП») as elsewhere.
+    { selector: '[data-testid="settings-theme"]', check: 'tapTargets', bug: 'settings-theme segments are 40 dp tall' },
+    { selector: '[data-testid="settings-diet-pp"]', check: 'tapTargets', bug: 'settings-diet-pp chip is 45 dp wide' },
+    // BUG (SettingsScreen.tsx Toggle): the testID sits on the RN <Switch>, rendered as a 40×20 input; only that
+    // small switch is the tap target (the row title is not pressable).
+    { selector: '[data-testid="settings-screen"] [role="switch"]', check: 'tapTargets', bug: 'settings switches are 40×20 tap targets' },
+  ],
   global: [
+    // NEEDS testID (shared/ui/Sheet.tsx): every sheet's backdrop is a Pressable «Закрыть» without testID
+    // (suggested `<sheet testID>-backdrop`, e.g. `director-panel-backdrop`).
+    { selector: '[aria-label="Закрыть"]:not([data-testid])', check: 'testIds', bug: 'sheet backdrops have no testID' },
     // BUG (OrderCapsule.tsx): the status capsule is 40 dp tall when collapsed.
     { selector: '[data-testid="order-capsule"]', check: 'tapTargets', bug: 'order-capsule is 40 dp tall' },
   ],

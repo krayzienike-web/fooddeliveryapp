@@ -4,11 +4,11 @@
  *           → повод → предзаказ → (вход по SMS) → подтверждение → календарь.
  * The AI entry point (assistant booking card → pre-filled booking) is covered in assistant.spec.ts.
  */
-import { test, expect, TID, expectUx } from '../support/fixtures';
+import { test, expect, TID, expectUx, SUNDAY_NOON } from '../support/fixtures';
 
 test.describe('J5 · Иду в ресторан', () => {
   test('list → restaurant → tomorrow 19:00 for 3 → auto-picked table → pre-order → SMS → confirmation', async ({ app, page }) => {
-    await app.open();
+    await app.open({}, { now: SUNDAY_NOON });
 
     // 1. «Рестораны» tab: list with shortcuts; open «ЖАР на Невском».
     await app.goTab('restaurants');
@@ -60,7 +60,7 @@ test.describe('J5 · Иду в ресторан', () => {
   });
 
   test('choosing another free table on the floor plan; busy tables are disabled', async ({ app }) => {
-    await app.open({ loggedIn: true });
+    await app.open({ loggedIn: true }, { now: SUNDAY_NOON });
     await app.goTab('restaurants');
     await app.tap(TID.restaurants.item('r-nevsky'));
     await app.tap(TID.restaurant.book);
@@ -80,7 +80,7 @@ test.describe('J5 · Иду в ресторан', () => {
   });
 
   test('more than 12 guests leads to the banquet constructor', async ({ app }) => {
-    await app.open();
+    await app.open({}, { now: SUNDAY_NOON });
     await app.goTab('restaurants');
     await app.tap(TID.restaurants.item('r-nevsky'));
     await app.tap(TID.restaurant.book);
@@ -91,7 +91,7 @@ test.describe('J5 · Иду в ресторан', () => {
   });
 
   test('map view: first tap selects a restaurant, second opens it', async ({ app }) => {
-    await app.open();
+    await app.open({}, { now: SUNDAY_NOON });
     await app.goTab('restaurants');
     await app.tap(`${TID.restaurants.view}-map`);
     await expect(app.tid(TID.restaurants.map)).toBeVisible();
@@ -104,7 +104,7 @@ test.describe('J5 · Иду в ресторан', () => {
   });
 
   test('restaurant «Забрать за N мин» switches to the menu', async ({ app }) => {
-    await app.open();
+    await app.open({}, { now: SUNDAY_NOON });
     await app.goTab('restaurants');
     await app.tap(TID.restaurants.item('r-rubinshteyna'));
     await app.tap(TID.restaurant.pickup);

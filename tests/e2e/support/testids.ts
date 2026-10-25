@@ -1,14 +1,14 @@
 /**
  * Single source of truth for testIDs used by E2E specs (mirrored in docs/testing.md).
  * Reconciled with `grep -rn "testID=" src` — every id below exists in the app unless it sits in a
- * `planned` block (screens that are still placeholders: profile, wheel; loyalty, promos, promo, ar, settings have only a root).
+ * `planned` block (only AR is still a placeholder).
  *
  * Convention: kebab-case `screen-element[-qualifier]`.
  *  - `<screen>-screen`         root container of every screen (used to wait for navigation)
  *  - `<screen>-primary-cta`    THE main action of the screen (UX rule: at most one visible at a time)
  *  - `<screen>-<element>-<id>` items of lists. The app uses the entity id VERBATIM (dish/order ids are already
  *                              kebab-case; enum ids keep underscores: `director-incident-kitchen_delay`,
- *                              `checkout-payment-card_courier`). Use `item()` for those, `kebab()` only for planned ids.
+ *                              `checkout-payment-card_courier`). Use `item()`; `kebab()` is for free text (e.g. a booking time label).
  *  - `*-live`                  elements whose content changes over time (timers, maps, video) — masked in screenshots
  *  - shared components derive child ids: Stepper `<id>-inc` / `<id>-dec`, Segmented `<id>-<optionId>`,
  *    Header `<id>-back` (or `header-back` when the Header has no testID).
@@ -17,7 +17,7 @@
  * When a screen changes: update this file first, then the page object / spec, then docs/testing.md.
  */
 
-/** Makes an arbitrary id safe for a testID: "19:00" → "19-00", "Pizza_1" → "pizza-1". For planned screens only. */
+/** Makes an arbitrary id safe for a testID: "19:00" → "19-00", "Pizza_1" → "pizza-1". */
 export const kebab = (s: string | number) =>
   String(s)
     .toLowerCase()
@@ -26,7 +26,6 @@ export const kebab = (s: string | number) =>
 
 /** `${prefix}-${id}` with the id verbatim — this is what the app does. */
 const item = (prefix: string) => (id: string | number) => `${prefix}-${id}`;
-const kebabItem = (prefix: string) => (id: string | number) => `${prefix}-${kebab(id)}`;
 
 export const TID = {
   /** Global chrome, visible on many screens. */
@@ -374,27 +373,76 @@ export const TID = {
   },
   profile: {
     screen: 'profile-screen',
-    planned: {
-      level: 'profile-level',
-      progressRing: 'profile-progress-ring',
-      points: 'profile-points',
-      achievements: 'profile-achievements',
-      achievement: kebabItem('profile-achievement'),
-      history: 'profile-history',
-      login: 'profile-login',
-      director: 'profile-director',
-      orders: 'profile-orders',
-    },
+    login: 'profile-login', // logged out
+    settingsGuest: 'profile-settings-guest', // logged out
+    loyalty: 'profile-loyalty',
+    orders: 'profile-orders',
+    bookings: 'profile-bookings',
+    bookingsSheet: 'profile-bookings-sheet',
+    bookTable: 'profile-book-table',
+    favorites: 'profile-favorites',
+    favoritesSheet: 'profile-favorites-sheet',
+    promos: 'profile-promos',
+    gift: 'profile-gift',
+    addresses: 'profile-addresses',
+    cards: 'profile-cards',
+    settings: 'profile-settings',
+    help: 'profile-help',
+    logout: 'profile-logout',
+    logoutSheet: 'profile-logout-sheet',
+    logoutConfirm: 'profile-logout-confirm',
+  },
+  loyalty: {
+    screen: 'loyalty-screen',
+    back: 'loyalty-header-back',
+    login: 'loyalty-login',
+    level: 'loyalty-level',
+    balance: 'loyalty-balance',
+    wheel: 'loyalty-wheel',
+    achievements: 'loyalty-achievements',
+    history: 'loyalty-history',
   },
   wheel: {
     screen: 'wheel-screen',
-    planned: { primaryCta: 'wheel-primary-cta', result: 'wheel-result', close: 'wheel-close' },
+    close: 'wheel-close',
+    rules: 'wheel-rules',
+    rulesSheet: 'wheel-rules-sheet',
+    face: 'wheel-face', // flick to spin
+    hint: 'wheel-hint',
+    spin: 'wheel-spin', // ~3.8 s animation after the API answers
+    result: 'wheel-result',
+    apply: 'wheel-apply',
+    again: 'wheel-again',
+    login: 'wheel-login',
   },
-  loyalty: { screen: 'loyalty-screen' },
-  promos: { screen: 'promos-screen' },
-  promo: { screen: 'promo-screen' },
-  ar: { screen: 'ar-screen' },
-  settings: { screen: 'settings-screen' },
+  promos: {
+    screen: 'promos-screen',
+    back: 'promos-header-back',
+    item: item('promos-item'), // by promo id; personal ПРИЗ-… promos come first
+  },
+  promo: {
+    screen: 'promo-screen',
+    close: 'promo-close',
+    code: 'promo-code', // tap = copy
+    apply: 'promo-apply',
+    applied: 'promo-applied',
+  },
+  settings: {
+    screen: 'settings-screen',
+    back: 'settings-header-back',
+    theme: 'settings-theme', // Segmented: settings-theme-dark | -light | -system
+    haptics: 'settings-haptics',
+    diet: item('settings-diet'), // none | pp | veg | gluten_free | halal
+    personalization: 'settings-personalization',
+    resetTaste: 'settings-reset-taste',
+    notif: item('settings-notif'), // status | offers | news
+    delete: 'settings-delete',
+    deleteSheet: 'settings-delete-sheet',
+    deleteNext: 'settings-delete-next',
+    deleteConfirm: 'settings-delete-confirm',
+    deleteCancel: 'settings-delete-cancel',
+  },
+  ar: { screen: 'ar-screen' }, // the only placeholder left
 } as const;
 
 /** Every literal testID the specs rely on (used by the registry self-check). */
