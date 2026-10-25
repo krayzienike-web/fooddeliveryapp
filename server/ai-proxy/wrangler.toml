@@ -1,0 +1,10 @@
+name = "zhar-ai-proxy"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Model for «Шеф ИИ». Change here without rebuilding the app.
+MODEL = "claude-opus-5-5"
+
+# Secrets (never commit): `npx wrangler secret put ANTHROPIC_API_KEY` and `npx wrangler secret put APP_KEY`.

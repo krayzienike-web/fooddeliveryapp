@@ -43,3 +43,9 @@ yarn-error.*
 # test artifacts
 tests/e2e/.artifacts/
 coverage/
+
+# AI proxy
+server/ai-proxy/node_modules/
+server/ai-proxy/.wrangler/
+.env
+.env.local

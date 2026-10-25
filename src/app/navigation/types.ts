@@ -24,11 +24,11 @@ export type RootStackParamList = {
   Promos: undefined;
   Promo: { id: string };
   Restaurant: { id: string };
-  Booking: { restaurantId: string };
-  Banquet: { restaurantId?: string } | undefined;
+  Booking: { restaurantId: string; date?: string; time?: string; guests?: number };
+  Banquet: { restaurantId?: string; guests?: number; budgetPerGuest?: number } | undefined;
   Loyalty: undefined;
   Wheel: { orderId?: string } | undefined;
-  Support: { orderId?: string } | undefined;
+  Support: { orderId?: string; topic?: string } | undefined;
   AR: { dishId: string };
   GroupCart: undefined;
   Gift: undefined;
