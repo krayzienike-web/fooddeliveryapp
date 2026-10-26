@@ -49,3 +49,6 @@ server/ai-proxy/node_modules/
 server/ai-proxy/.wrangler/
 .env
 .env.local
+
+# claude.ai artifact package (scripts/artifact/build.mjs)
+artifact-build/
