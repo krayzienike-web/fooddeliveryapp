@@ -188,7 +188,7 @@ export function SupportScreen() {
             placeholder="Сообщение"
             placeholderTextColor={c.textTertiary}
             onSubmitEditing={send}
-            style={[typeScale.bodyL, { flex: 1, height: 48, borderRadius: radius.full, backgroundColor: c.surfaceRaised, paddingHorizontal: space.l, color: c.textPrimary }]}
+            style={[typeScale.bodyL, { flex: 1, minWidth: 0, height: 48, borderRadius: radius.full, backgroundColor: c.surfaceRaised, paddingHorizontal: space.l, color: c.textPrimary }]}
           />
           <IconButton testID="support-send" icon="send" label="Отправить" tone="accent" size={44} onPress={send} />
         </View>

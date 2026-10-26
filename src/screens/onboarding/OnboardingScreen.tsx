@@ -44,7 +44,7 @@ function Card({ dish, onDecide, top }: { dish: Dish; onDecide: (like: boolean) =
   const cardW = width - space.xl * 2;
   return (
     <GestureDetector gesture={pan}>
-      <Animated.View style={[{ position: 'absolute', width: cardW, height: cardW * 1.22, borderRadius: radius.l, overflow: 'hidden', backgroundColor: c.surface }, style]}>
+      <Animated.View testID={`onboarding-card-${dish.id}`} style={[{ position: 'absolute', width: cardW, height: cardW * 1.22, borderRadius: radius.l, overflow: 'hidden', backgroundColor: c.surface }, style]}>
         <FoodImage id={dish.image} style={{ width: '100%', height: '100%' }} />
         <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: space.l, backgroundColor: c.scrim }}>
           <Txt v="headline" style={{ color: c.onPhoto }}>
@@ -126,7 +126,8 @@ export function OnboardingScreen() {
             </Txt>
           </View>
           <View style={{ gap: space.s }}>
-            <Button testID="onboarding-primary-cta" title="Найти мой вкус · 15 секунд" onPress={() => setStage('swipe')} />
+            {/* Wait for the menu: an empty deck would jump straight to the radar on the first swipe. */}
+            <Button testID="onboarding-primary-cta" title="Найти мой вкус · 15 секунд" loading={deck.length < DECK.length} disabled={deck.length < DECK.length} onPress={() => setStage('swipe')} />
             <Button testID="onboarding-skip" kind="ghost" title="Сразу в меню" onPress={() => finish(false)} />
           </View>
         </Animated.View>

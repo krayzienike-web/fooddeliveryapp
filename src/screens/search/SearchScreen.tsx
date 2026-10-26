@@ -23,7 +23,7 @@ export function SearchScreen() {
     return () => clearTimeout(t);
   }, [q]);
 
-  const results = useMemo(() => (debounced.trim().length >= 2 ? searchDishes(dishes, debounced) : []), [dishes, debounced]);
+  const results = useMemo(() => (debounced.trim().length >= 2 ? searchDishes(dishes, debounced, categories) : []), [dishes, debounced, categories]);
   const hint = useMemo(() => (debounced.trim().length >= 3 && results.length === 0 ? didYouMean(dishes, debounced) : null), [dishes, debounced, results.length]);
   const grouped = useMemo(
     () => categories.map((cat) => ({ cat, items: results.filter((d) => d.categoryId === cat.id) })).filter((g) => g.items.length),

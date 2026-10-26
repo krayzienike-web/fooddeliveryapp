@@ -85,6 +85,8 @@ test.describe('A1 · Каталог и корзина', () => {
     await app.open();
     await app.goTab('menu');
     const cards = app.menu.root.locator('[data-testid^="dish-card-"]');
+    // Count only after the menu has rendered (a cold count of 0 made «fewer than all» impossible).
+    await expect.poll(() => cards.count()).toBeGreaterThan(0);
     const all = await cards.count();
     await app.tap(TID.menu.filters);
     await app.tap(TID.menu.filter('veg'));
@@ -93,9 +95,9 @@ test.describe('A1 · Каталог и корзина', () => {
     await expect(app.menu.root).toContainText('Вегетарианское');
   });
 
-  // BUG (features/search/model/fuzzy.ts: searchDishes): category names are not indexed — «пицца» and the typo «пица»
+  // FIXED (was: features/search/model/fuzzy.ts: searchDishes): category names are not indexed — «пицца» and the typo «пица»
   // return only the «Пятничный разнос» combo (its description mentions «пиццы»), none of the 12 pizzas.
-  test.fail('search: «пица» (typo) finds pizzas', async ({ app }) => {
+  test('search: «пица» (typo) finds pizzas', async ({ app }) => {
     await app.open();
     await app.tap(TID.home.search);
     await app.fill(TID.search.input, 'пица');

@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useRestaurants } from '@/entities/restaurant/model/store';
 import { useMenu } from '@/entities/dish/model/store';
+import { useSession } from '@/features/auth/model/store';
 import { useOrders } from '@/entities/order/model/store';
 import { bootstrapE2ESession } from '@/features/auth/model/store';
 import { ApiProvider } from '@/services';
@@ -38,10 +39,17 @@ export default function App() {
 
   useEffect(() => {
     loadMenu();
-    loadOrders();
     loadRestaurants();
     bootstrapE2ESession();
-  }, [loadMenu, loadOrders, loadRestaurants]);
+  }, [loadMenu, loadRestaurants]);
+
+  // Order history belongs to the signed-in guest: load on login, forget on logout
+  // (otherwise a guest would see the demo user's «как обычно» and repeat strip).
+  const userId = useSession((s) => s.user?.id);
+  useEffect(() => {
+    if (userId) loadOrders();
+    else useOrders.setState({ orders: [], activeId: undefined, loaded: true });
+  }, [userId, loadOrders]);
 
   const navTheme = isDark ? DarkTheme : DefaultTheme;
   return (

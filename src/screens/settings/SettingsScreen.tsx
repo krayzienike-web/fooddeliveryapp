@@ -35,6 +35,7 @@ function Toggle({ title, subtitle, value, onChange, testID }: { title: string; s
       <Switch
         testID={testID}
         accessibilityLabel={title}
+        hitSlop={{ top: 14, bottom: 14, left: 10, right: 10 }}
         value={value}
         onValueChange={(v) => {
           haptic.tick();

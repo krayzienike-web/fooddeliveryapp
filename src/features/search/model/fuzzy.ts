@@ -52,12 +52,26 @@ function tokenScore(q: string, word: string): number {
   return 0;
 }
 
-export function searchDishes(dishes: Dish[], query: string): Dish[] {
+/**
+ * Fuzzy dish search. With `categories`, a query that names a category («пицца», typo «пица», wrong layout)
+ * returns the whole category, best matches by name first.
+ */
+export function searchDishes(dishes: Dish[], query: string, categories: Array<{ id: string; title: string }> = []): Dish[] {
   const raw = normalize(query);
   if (!raw) return [];
   const variants = [raw];
   const fixed = normalize(fixLayout(query));
   if (fixed !== raw) variants.push(fixed);
+
+  const catHit = new Set(
+    categories
+      .filter((cat) => {
+        const words = normalize(cat.title).split(' ');
+        // Only real words: «на», «и», «с» would prefix-match «Напитки», «Салаты»…
+        return variants.some((v) => v.split(' ').some((t) => t.length >= 4 && words.some((w) => tokenScore(t, w) >= 0.6)));
+      })
+      .map((cat) => cat.id),
+  );
 
   const results = dishes.map((dish) => {
     const hay = normalize(`${dish.name} ${dish.tagline} ${dish.ingredients.map((i) => i.title).join(' ')}`).split(' ');
@@ -76,7 +90,8 @@ export function searchDishes(dishes: Dish[], query: string): Dish[] {
       }
       best = Math.max(best, s / v.split(' ').length);
     }
-    return { dish, s: best };
+    // A category match counts as a solid hit, but a direct name match still ranks higher.
+    return { dish, s: catHit.has(dish.categoryId) ? Math.max(best, 0.7) : best };
   });
   return results.filter((r) => r.s >= 0.5).sort((a, b) => b.s - a.s || b.dish.popularity - a.dish.popularity).map((r) => r.dish);
 }

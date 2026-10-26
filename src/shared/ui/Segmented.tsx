@@ -12,13 +12,15 @@ export function Segmented<T extends string>({ items, value, onChange, testID }: 
   const seg = w / items.length;
   const a = useAnimatedStyle(() => ({ transform: [{ translateX: withSpring(idx * seg, motion.springStandard) }], width: seg }), [idx, seg]);
   return (
-    <View testID={testID} onLayout={(e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width - 8)} style={{ flexDirection: 'row', backgroundColor: c.surfaceRaised, borderRadius: radius.full, padding: 4, height: 48 }}>
+    <View testID={testID} onLayout={(e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width - 8)} style={{ flexDirection: 'row', backgroundColor: c.surfaceRaised, borderRadius: radius.full, padding: 4, height: 52 }}>
       {w > 0 ? <Animated.View style={[{ position: 'absolute', left: 4, top: 4, bottom: 4, borderRadius: radius.full, backgroundColor: c.surfaceHigh }, a]} /> : null}
       {items.map((it) => (
         <PressableScale
           key={it.id}
           testID={testID ? `${testID}-${it.id}` : undefined}
+          accessibilityRole="tab"
           accessibilityState={{ selected: it.id === value }}
+          aria-selected={it.id === value}
           onPress={() => onChange(it.id)}
           hapticOnPress="tick"
           pressedScale={0.97}

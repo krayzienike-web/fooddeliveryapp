@@ -85,7 +85,7 @@ function ReelItem({ reel, dish, active, height, muted, onToggleMute }: { reel: R
   };
 
   return (
-    <View style={{ height, backgroundColor: c.island }}>
+    <View testID={`reels-item-${dish.id}`} style={{ height, backgroundColor: c.island }}>
       <Pressable style={StyleSheet.absoluteFill} onPress={onTap} accessibilityLabel="Двойной тап — в избранное">
         {reel.video ? <ReelVideo source={reel.video} poster={reel.poster as number} active={active} muted={muted} /> : <KenBurns id={reel.poster as string} active={active} />}
       </Pressable>
@@ -205,6 +205,9 @@ export function ReelsScreen() {
 
   return (
     <View testID="reels-screen" style={{ flex: 1, backgroundColor: c.island }}>
+      {/* Render only with data: an empty list shows just the footer, and the browser's scroll anchoring
+          then keeps the footer in view once the reels arrive — the feed would open at «Вы посмотрели всё». */}
+      {ordered.length ? (
       <FlatList
         data={ordered}
         keyExtractor={(r) => r.id}
@@ -219,6 +222,7 @@ export function ReelsScreen() {
         initialNumToRender={2}
         maxToRenderPerBatch={2}
         getItemLayout={(_, i) => ({ length: height, offset: height * i, index: i })}
+        style={{ overflowAnchor: 'none' } as object}
         ListFooterComponent={
           <View style={{ height, alignItems: 'center', justifyContent: 'center', gap: space.m, padding: space.xl }}>
             <Icon name="check-circle-outline" size={48} raw={c.onPhoto} />
@@ -231,6 +235,7 @@ export function ReelsScreen() {
           </View>
         }
       />
+      ) : null}
       <View style={{ position: 'absolute', top: insets.top + space.s, left: space.s, right: space.s, flexDirection: 'row', alignItems: 'center' }}>
         <IconButton testID="reels-close" icon="close" label="Закрыть" tone="glass" onPress={() => nav.goBack()} />
         <View style={{ flex: 1, alignItems: 'center' }}>

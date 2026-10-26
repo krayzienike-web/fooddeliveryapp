@@ -30,9 +30,12 @@ export function Chip({
       onPress={onPress}
       pressedScale={0.94}
       hapticOnPress="tick"
+      disabled={!onPress}
       accessibilityState={{ selected: !!selected }}
-      accessibilityRole="button"
-      style={{ minHeight: 48, justifyContent: 'center' }}
+      aria-selected={onPress ? !!selected : undefined}
+      // A chip without an action is a tag, not a button (screen readers shouldn't offer to press it).
+      accessibilityRole={onPress ? 'button' : 'text'}
+      style={{ minHeight: 48, minWidth: 48, justifyContent: 'center' }}
     >
       <View
         style={{
@@ -41,6 +44,7 @@ export function Chip({
           gap: space.xs,
           height: small ? 32 : 36,
           paddingHorizontal: space.m,
+          justifyContent: 'center',
           borderRadius: radius.full,
           backgroundColor: selected ? activeBg : c.surfaceRaised,
           borderWidth: 1,

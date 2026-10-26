@@ -224,6 +224,23 @@ export function OrderScreen() {
         </View>
 
         <Button testID="order-support" kind="outline" icon="lifebuoy" title="Помощь с заказом" onPress={() => nav.navigate('Support', { orderId: order.id })} />
+        {order.status === 'created' || order.status === 'accepted' ? (
+          <Button
+            testID="order-cancel"
+            kind="ghost"
+            title="Отменить заказ"
+            onPress={async () => {
+              try {
+                const o = await api.orders.cancel(order.id);
+                upsert(o);
+                haptic.tick();
+                toast(o.pointsSpent ? `Заказ отменён, ${o.pointsSpent} Б вернули` : 'Заказ отменён, деньги вернутся на карту', { icon: 'check-circle-outline' });
+              } catch (e) {
+                toast((e as { message?: string }).message ?? 'Отменить не получилось', { icon: 'alert-circle-outline', tone: 'error' });
+              }
+            }}
+          />
+        ) : null}
       </ScrollView>
 
       {celebrate ? (

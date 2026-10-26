@@ -71,8 +71,8 @@ test.describe('A18 · Поддержка', () => {
     await expect(app.support.root).toContainText('Анна на связи', { timeout: 6_000 });
   });
 
-  // BUG (SupportScreen.tsx): the composer row (input + send) is 477 px wide on a 412 px screen; «send» is off-screen.
-  test.fail('composer fits the screen', async ({ app, page }) => {
+  // FIXED (was: SupportScreen.tsx): the composer row (input + send) is 477 px wide on a 412 px screen; «send» is off-screen.
+  test('composer fits the screen', async ({ app, page }) => {
     await app.open({ loggedIn: true, speed: 1 });
     await app.placeOrder();
     await app.tap(TID.order.support);

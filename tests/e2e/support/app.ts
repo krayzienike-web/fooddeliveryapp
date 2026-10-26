@@ -26,10 +26,12 @@ export interface E2EFlags {
   skipOnboarding?: boolean;
   loggedIn?: boolean;
   reducedMotion?: boolean;
+  /** AR: half-resolution GL without shadows/env map — the AR view is masked in screenshots anyway. */
+  lowGl?: boolean;
   persist?: boolean;
 }
 
-export const DEFAULT_FLAGS: E2EFlags = { seed: 1, speed: 20, skipOnboarding: true, loggedIn: false, reducedMotion: true, persist: false };
+export const DEFAULT_FLAGS: E2EFlags = { seed: 1, speed: 20, skipOnboarding: true, loggedIn: false, reducedMotion: true, persist: false, lowGl: true };
 
 /** Friday 23 Oct 2026, 19:30 Moscow — the demo user's «как обычно в пятницу» ritual window (J2). */
 export const FRIDAY_EVENING = new Date('2026-10-23T19:30:00+03:00');

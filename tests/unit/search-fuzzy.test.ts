@@ -91,3 +91,21 @@ describe('didYouMean', () => {
     expect(didYouMean(m, 'суп')).toBeNull();
   });
 });
+
+describe('searchDishes — category names', () => {
+  const cats = [
+    { id: 'pizza', title: 'Пицца' },
+    { id: 'drinks', title: 'Напитки' },
+  ];
+  const pizza = makeDish({ id: 'p1', name: 'Маргарита', categoryId: 'pizza' });
+  const combo = makeDish({ id: 'c1', name: 'Пятничный разнос', tagline: 'Пицца и крылья', categoryId: 'combo' });
+  const drink = makeDish({ id: 'd1', name: 'Морс', categoryId: 'drinks' });
+
+  it('«пицца» and the typo «пица» return every pizza, not only dishes that mention it', () => {
+    for (const q of ['пицца', 'пица', 'gbwwf']) expect(searchDishes([pizza, combo, drink], q, cats).map((d) => d.id)).toContain('p1');
+  });
+
+  it('short words do not pull in a whole category («на» ≠ «Напитки»)', () => {
+    expect(searchDishes([pizza, combo, drink], 'что-нибудь на ужин', cats).map((d) => d.id)).not.toContain('d1');
+  });
+});

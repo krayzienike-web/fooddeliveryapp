@@ -120,17 +120,18 @@ export function Dish3DView({ model, explode, focusId, mode = 'orbit', style, tes
         ? (gl as unknown as { canvas: HTMLCanvasElement }).canvas
         : ({ width: w, height: h, style: {}, clientWidth: w, clientHeight: h, addEventListener: () => undefined, removeEventListener: () => undefined } as unknown as HTMLCanvasElement);
     const renderer = new THREE.WebGLRenderer({ canvas, context: gl as unknown as WebGL2RenderingContext, antialias: true, alpha: true, premultipliedAlpha: true });
-    renderer.setPixelRatio(1);
+    renderer.setPixelRatio(E2E.lowGl ? 0.5 : 1);
     renderer.setSize(w, h, false);
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.95;
-    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.enabled = !E2E.lowGl;
     renderer.shadowMap.type = THREE.PCFShadowMap;
 
     const scene = new THREE.Scene();
     try {
+      if (E2E.lowGl) throw new Error('skip env in tests');
       const pmrem = new THREE.PMREMGenerator(renderer);
       // Blurred: sharp studio lights in the env map turn flat glossy food (sauce, glaze) into white mirrors.
       scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.35).texture;

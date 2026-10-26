@@ -37,10 +37,10 @@ test.describe('B2 · Food Reels', () => {
     await app.expectNoErrors();
   });
 
-  // BUG (ReelsScreen.tsx, web export): the feed opens scrolled to the very end — the FlatList scroller starts at
+  // FIXED (was: ReelsScreen.tsx, web export): the feed opened scrolled to the very end — the FlatList scroller starts at
   // scrollTop ≈ 17 × screen height and the guest sees only the «Вы посмотрели всё новое» footer (first reel is above
   // the viewport). Repro: Home → «Смотреть, как готовим». Expected: the first reel fills the screen.
-  test.fail('opens on the first reel', async ({ app, page }) => {
+  test('opens on the first reel', async ({ app, page }) => {
     await app.open();
     await app.tap(TID.home.reelsEntry);
     await app.reels.expectOpen();
@@ -48,8 +48,7 @@ test.describe('B2 · Food Reels', () => {
     await expect(app.tid(TID.reels.dishCard).first()).toBeInViewport({ timeout: 3_000 });
   });
 
-  // Blocked by the bug above (the list starts at its end, so there is no «next» reel to swipe to).
-  test.fixme('swipe up shows the next dish', async ({ app, page }) => {
+  test('swipe up shows the next dish', async ({ app, page }) => {
     await app.open();
     await app.tap(TID.home.reelsEntry);
     const first = (await app.tid(TID.reels.dishCard).first().innerText()).split('\n')[0];

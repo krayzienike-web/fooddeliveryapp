@@ -177,7 +177,7 @@ export function AssistantScreen() {
               onSubmitEditing={() => submit(draft)}
               blurOnSubmit
               returnKeyType="send"
-              style={[typeScale.bodyL, { flex: 1, color: c.textPrimary, maxHeight: 120, paddingVertical: space.s, outlineStyle: 'none' } as object]}
+              style={[typeScale.bodyL, { flex: 1, minWidth: 0, color: c.textPrimary, maxHeight: 120, paddingVertical: space.s, outlineStyle: 'none' } as object]}
             />
             {voice.supported && !draft && !busy ? (
               <IconButton testID="assistant-voice" icon={voice.listening ? 'stop' : 'microphone-outline'} label={voice.listening ? 'Остановить запись' : 'Сказать голосом'} tone="none" onPress={voice.listening ? voice.stop : voice.start} />

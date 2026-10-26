@@ -57,7 +57,8 @@ export function maskPhone(digits: string): string {
   const d = digits.replace(/\D/g, '').replace(/^[78]/, '').slice(0, 10);
   let out = '+7';
   if (d.length > 0) out += ` (${d.slice(0, 3)}`;
-  if (d.length >= 3) out += ')';
+  // Close the bracket only once a 4th digit exists, so Backspace can delete past it.
+  if (d.length > 3) out += ')';
   if (d.length > 3) out += ` ${d.slice(3, 6)}`;
   if (d.length > 6) out += `-${d.slice(6, 8)}`;
   if (d.length > 8) out += `-${d.slice(8, 10)}`;

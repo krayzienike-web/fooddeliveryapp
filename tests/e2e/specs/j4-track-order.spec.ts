@@ -63,9 +63,8 @@ test.describe('J4 · Жду заказ', () => {
     await expect(app.order.root).toContainText(/× 1/);
   });
 
-  // NEEDS testID / feature: there is no explicit «Отменить заказ» on the order screen (suggested `order-cancel`,
-  // visible while `canCancel(status)`); today cancellation exists only as an incident resolution.
-  test.fixme('cancel is possible only before cooking', async ({ app }) => {
+  // «Отменить заказ» (`order-cancel`) is shown while the order is created/accepted.
+  test('cancel is possible only before cooking', async ({ app }) => {
     await app.open({ loggedIn: true, speed: 1 });
     await app.placeOrder();
     await app.tap('order-cancel');

@@ -47,7 +47,7 @@ describe('phone mask', () => {
   it('formats progressively while typing', () => {
     expect(maskPhone('')).toBe('+7');
     expect(maskPhone('9')).toBe('+7 (9');
-    expect(maskPhone('921')).toBe('+7 (921)');
+    expect(maskPhone('921')).toBe('+7 (921');
     expect(maskPhone('9215')).toBe('+7 (921) 5');
     expect(maskPhone('9215551')).toBe('+7 (921) 555-1');
     expect(maskPhone('9215551234')).toBe('+7 (921) 555-12-34');
@@ -64,9 +64,8 @@ describe('phone mask', () => {
     expect(phoneDigits(maskPhone('9990000000'))).toBe('9990000000');
     expect(phoneDigits('+7 (921) 555-12-34')).toBe('9215551234');
   });
-  // BUG (shared/lib/format.ts: maskPhone): deleting the «)» after 3 digits is impossible — "+7 (921" is re-masked to
-  // "+7 (921)", so Backspace never gets past the bracket. Expected: "+7 (921" → "+7 (921" (no closing bracket).
-  test.failing('backspace over «)» is not undone by the mask', () => {
+  // Fixed: the bracket closes only with the 4th digit, so Backspace can delete past it.
+  it('backspace over «)» is not undone by the mask', () => {
     expect(maskPhone('+7 (921')).toBe('+7 (921');
   });
 });

@@ -9,6 +9,8 @@ export interface E2EFlags {
   loggedIn?: boolean;
   reducedMotion?: boolean;
   persist?: boolean;
+  /** Cheap 3D for tests: half resolution, no shadows, no environment map (software GL in CI). */
+  lowGl?: boolean;
 }
 
 declare const globalThis: { __ZHAR_E2E__?: E2EFlags };

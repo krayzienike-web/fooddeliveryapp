@@ -46,9 +46,9 @@ test.describe('J2 · Повторяю любимое', () => {
     await expect(app.tid(TID.global.cartBar)).toBeVisible();
   });
 
-  // BUG (App.tsx → useOrders.load / mock orders.list): order history is loaded without a session, so a logged-out guest
+  // FIXED (was: App.tsx → useOrders.load / mock orders.list): order history is loaded without a session, so a logged-out guest
   // sees the demo user's «Как обычно в пятницу?» and «Повторить» strip. Expected: no personal predictions before login.
-  test.fail('guest sees no personal suggestion', async ({ app }) => {
+  test('guest sees no personal suggestion', async ({ app }) => {
     await app.open({ loggedIn: false }, { now: FRIDAY_EVENING });
     await expect(app.page.getByText('Как обычно в пятницу?')).toBeHidden();
   });

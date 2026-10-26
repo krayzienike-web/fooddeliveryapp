@@ -44,10 +44,6 @@ export const KNOWN_UX: Record<string, KnownUx[]> = {
     // NEEDS testID (RateScreen.tsx): close button → `rate-close`; reason chips → `rate-tag-<n>`.
     { selector: '[data-testid="rate-screen"] [role="button"]:not([data-testid])', check: 'testIds', bug: 'rate close button and reason chips have no testID' },
   ],
-  support: [
-    // BUG (SupportScreen.tsx): the composer row is 477 px wide on a 412 px screen — input and «send» are cut off.
-    { selector: '[data-testid="support-input"], [data-testid="support-send"]', check: 'overflow', bug: 'support composer overflows the screen (477 px > 412 px)' },
-  ],
   address: [
     // BUG (AddressScreen.tsx): intercom and comment inputs are 21 dp tall.
     { selector: '[data-testid="address-intercom"], [data-testid="address-comment"]', check: 'tapTargets', bug: 'address intercom/comment inputs are 21 dp tall' },
@@ -63,11 +59,6 @@ export const KNOWN_UX: Record<string, KnownUx[]> = {
   restaurants: [
     // BUG (shared/ui/Segmented.tsx, same as home-mode): «Списком / На карте» segments are 40 dp tall.
     { selector: '[data-testid="restaurants-view"]', check: 'tapTargets', bug: 'restaurants-view segments are 40 dp tall' },
-  ],
-  restaurant: [
-    // BUG (RestaurantScreen.tsx): feature chips («Завтраки с 9:00», «Окна на Невский»…) are shared/ui Chip without onPress —
-    // announced as buttons (role=button, focusable) but do nothing and have no testID. Use a non-interactive tag instead.
-    { selector: '[data-testid="restaurant-screen"] [role="button"]:not([data-testid])', check: 'testIds', bug: 'restaurant feature chips are fake buttons without testID' },
   ],
   booking: [
     // BUG (widgets/floor-plan/FloorPlanView.tsx): tables are drawn to scale — 2-seat and bar tables are 30–46 dp (< 48).
