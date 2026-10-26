@@ -35,6 +35,20 @@ export const useTaste = create<TasteState>()(
       setProfile: (profile) => set({ profile }),
       reset: () => set({ profile: emptyProfile(), viewCounts: { ...DEMO_VIEW_COUNTS }, likes: [] }),
     }),
-    { name: 'zhar-taste', storage: createJSONStorage(() => safeStorage) },
+    {
+      name: 'zhar-taste',
+      storage: createJSONStorage(() => safeStorage),
+      // Storage is async: a «Не предлагать такое» or a like made before rehydration finishes must survive it.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<TasteState>;
+        if (!p.profile) return { ...current, ...p };
+        return {
+          ...current,
+          ...p,
+          profile: { ...p.profile, mutedSuggestionKinds: [...new Set([...p.profile.mutedSuggestionKinds, ...current.profile.mutedSuggestionKinds])] },
+          likes: [...new Set([...(p.likes ?? []), ...current.likes])],
+        };
+      },
+    },
   ),
 );

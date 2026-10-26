@@ -81,7 +81,8 @@ export function Dish3DView({ model, explode, focusId, mode = 'orbit', style, tes
         const dy = pageY - last.y;
         last = { x: pageX, y: pageY };
         o.yaw -= dx * 0.01;
-        o.vyaw = -dx * 0.01;
+        // No flick inertia in tests: ~80 extra frames on software GL would stall the page.
+        o.vyaw = E2E.lowGl ? 0 : -dx * 0.01;
         o.pitch = Math.min(1.35, Math.max(0.05, o.pitch + dy * 0.006));
       },
     });
@@ -174,6 +175,7 @@ export function Dish3DView({ model, explode, focusId, mode = 'orbit', style, tes
 
     let lastT = Date.now();
     let lastSig = '';
+    let lastRenderAt = 0;
     const frame = () => {
       const now = Date.now();
       const dt = Math.min(0.05, (now - lastT) / 1000);
@@ -224,8 +226,10 @@ export function Dish3DView({ model, explode, focusId, mode = 'orbit', style, tes
 
       // Render on demand: an unchanged frame is skipped (battery on phones, snappy software GL in tests).
       const sig = `${camera.position.x.toFixed(3)},${camera.position.y.toFixed(3)},${camera.position.z.toFixed(3)},${e.toFixed(4)},${L.focusId === undefined ? 0 : now - L.focusAt < 800 ? now : 0},${m.group.uuid},${w}`;
-      if (sig !== lastSig) {
+      // Tests on software GL: at most ~5 renders per second while something changes.
+      if (sig !== lastSig && (!E2E.lowGl || now - lastRenderAt > 200)) {
         lastSig = sig;
+        lastRenderAt = now;
         renderer.render(scene, camera);
         gl.endFrameEXP();
       }
