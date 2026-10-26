@@ -11,6 +11,8 @@ export interface E2EFlags {
   persist?: boolean;
   /** Cheap 3D for tests: half resolution, no shadows, no environment map (software GL in CI). */
   lowGl?: boolean;
+  /** Show the review panel (hidden in e2e by default so it stays out of screenshots). */
+  review?: boolean;
 }
 
 declare const globalThis: { __ZHAR_E2E__?: E2EFlags };

@@ -18,6 +18,7 @@ import { ToastHost } from '@/shared/ui';
 import { FlyLayer } from '@/features/add-to-cart/ui/FlyLayer';
 import { DirectorPanel } from '@/widgets/director/DirectorPanel';
 import { FeedbackLayer } from '@/widgets/feedback/FeedbackLayer';
+import { ReviewLayer } from '@/widgets/review/ReviewLayer';
 import { OrderCapsule } from '@/widgets/order-capsule/OrderCapsule';
 import { RootNavigator } from './navigation/RootNavigator';
 import { navigationRef } from './navigation/ref';
@@ -64,6 +65,7 @@ export default function App() {
               <OrderCapsule />
               <DirectorPanel />
               <FeedbackLayer />
+              <ReviewLayer />
               <ToastHost />
             </NavigationContainer>
           ) : (

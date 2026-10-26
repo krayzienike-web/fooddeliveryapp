@@ -355,6 +355,26 @@ export const TID = {
     rate: 'qr-rate',
     finish: 'qr-finish',
   },
+  review: {
+    fab: 'review-fab',
+    panel: 'review-panel',
+    pick: 'review-pick',
+    screenNote: 'review-screen-note',
+    picking: 'review-picking',
+    pickScreen: 'review-pick-screen',
+    pickCancel: 'review-pick-cancel',
+    composer: 'review-composer',
+    target: 'review-composer-target',
+    kind: item('review-kind'), // change | bug | idea
+    text: 'review-text',
+    save: 'review-save',
+    remove: 'review-delete',
+    draft: item('review-draft'), // index in the batch
+    empty: 'review-empty',
+    send: 'review-send',
+    channel: 'review-channel',
+    lastSent: 'review-last-sent',
+  },
   gift: {
     screen: 'gift-screen',
     back: 'gift-header-back',

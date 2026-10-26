@@ -1,9 +1,11 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { navigationRef } from '@/app/navigation/ref';
-import { anchorLabel, anchorName, parseAnchor, routeFor, routeKey } from '@/features/feedback/model/anchors';
+import { anchorLabel, anchorName, parseAnchor, routeFor } from '@/features/feedback/model/anchors';
 import { IS_E2E } from '@/shared/config/env';
 import { useTheme } from '@/shared/theme';
+import { currentScreen } from './screen';
+import { startTapPicker, type PickTarget } from './tapPicker';
 
 /**
  * Review mode for the web build published as a claude.ai Artifact (D0): reviewers turn on the shell's
@@ -33,13 +35,6 @@ interface ClaudeRuntime {
   use(name: 'comments'): Promise<CommentsNs | null>;
 }
 
-function currentScreen(): { route: string; key?: string } | null {
-  if (!navigationRef.isReady()) return null;
-  const r = navigationRef.getCurrentRoute();
-  if (!r) return null;
-  return { route: r.name, key: routeKey(r.name, r.params) };
-}
-
 const sameScreen = (a: { route: string; key?: string }, b: { route: string; key?: string }) => a.route === b.route && (a.key ?? '') === (b.key ?? '');
 
 function centerOf(el: Element): { x: number; y: number } | null {
@@ -65,11 +60,6 @@ export function FeedbackLayer() {
     let lastReport = '';
     let unsubNav: (() => void) | undefined;
 
-    // A thin ring that follows the pointer in comment mode, so reviewers see what they're about to tag.
-    const ring = document.createElement('div');
-    Object.assign(ring.style, { position: 'fixed', pointerEvents: 'none', zIndex: '2147483646', border: `2px solid ${c.accent}`, borderRadius: '10px', display: 'none', transition: 'all 80ms ease-out' });
-    document.body.appendChild(ring);
-
     const report = () => {
       if (!ctl) return;
       const here = currentScreen();
@@ -94,56 +84,26 @@ export function FeedbackLayer() {
       }
     };
 
-    const targetOf = (ev: Event): Element | null => {
-      const t = ev.target as Element | null;
-      return t?.closest?.('[data-testid]') ?? null;
-    };
-
+    let stopPicker: (() => void) | undefined;
     // While comment mode is on, a tap tags the element instead of pressing it.
-    const block = (ev: Event) => {
-      if (!modeOn) return;
-      ev.stopPropagation();
-      if (ev.type !== 'touchstart' && ev.type !== 'wheel') ev.preventDefault();
-    };
-    const onUp = (ev: PointerEvent) => {
-      if (!modeOn || !ctl) return;
-      ev.stopPropagation();
-      ev.preventDefault();
+    const onPick = (t: PickTarget) => {
       const here = currentScreen();
-      if (!here) return;
-      const el = targetOf(ev);
-      const testId = el?.getAttribute('data-testid');
-      const name = anchorName({ ...here, target: testId ?? 'screen' });
-      const text = el ? el.getAttribute('aria-label') || (el as HTMLElement).innerText : null;
-      ctl.compose(name, el ?? { x: ev.pageX, y: ev.pageY }, { label: anchorLabel(here.route, text) }).catch(() => undefined);
+      if (!ctl || !here) return;
+      const name = anchorName({ ...here, target: t.testId ?? 'screen' });
+      ctl.compose(name, t.el ?? { x: t.pageX, y: t.pageY }, { label: anchorLabel(here.route, t.text) }).catch(() => undefined);
     };
-    const onMove = (ev: PointerEvent) => {
-      if (!modeOn) return;
-      const el = targetOf(ev);
-      if (!el) {
-        ring.style.display = 'none';
-        return;
-      }
-      const b = el.getBoundingClientRect();
-      Object.assign(ring.style, { display: 'block', left: `${b.left - 3}px`, top: `${b.top - 3}px`, width: `${b.width + 6}px`, height: `${b.height + 6}px` });
-    };
-    const BLOCKED = ['pointerdown', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'click'] as const;
 
     const setMode = (on: boolean) => {
       if (on === modeOn) return;
       modeOn = on;
       if (on) {
-        BLOCKED.forEach((t) => window.addEventListener(t, block, { capture: true }));
-        window.addEventListener('pointerup', onUp, { capture: true });
-        window.addEventListener('pointermove', onMove, { capture: true });
+        stopPicker = startTapPicker(onPick, c.accent);
         timer = setInterval(report, 500);
         report();
       } else {
-        BLOCKED.forEach((t) => window.removeEventListener(t, block, { capture: true }));
-        window.removeEventListener('pointerup', onUp, { capture: true });
-        window.removeEventListener('pointermove', onMove, { capture: true });
+        stopPicker?.();
+        stopPicker = undefined;
         if (timer) clearInterval(timer);
-        ring.style.display = 'none';
         threads = [];
       }
     };
@@ -180,7 +140,6 @@ export function FeedbackLayer() {
       setMode(false);
       unsubNav?.();
       ctl?.release();
-      ring.remove();
     };
   }, [c.accent]);
 

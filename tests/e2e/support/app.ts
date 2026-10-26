@@ -29,6 +29,8 @@ export interface E2EFlags {
   /** AR: half-resolution GL without shadows/env map — the AR view is masked in screenshots anyway. */
   lowGl?: boolean;
   persist?: boolean;
+  /** Show the review panel (D0), hidden by default to keep it out of screenshots. */
+  review?: boolean;
 }
 
 export const DEFAULT_FLAGS: E2EFlags = { seed: 1, speed: 20, skipOnboarding: true, loggedIn: false, reducedMotion: true, persist: false, lowGl: true };
